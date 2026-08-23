@@ -1,0 +1,60 @@
+networks:
+  o-gamos-mas-network:
+    driver: bridge
+
+services:
+  # MongoDB Service
+  mongodb:
+    image: mongo:7.0
+    container_name: o-gamos-mas-mongodb
+    restart: unless-stopped
+    command: mongod --setParameter authenticationMechanisms=SCRAM-SHA-1,SCRAM-SHA-256
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: o-gamos-mas
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - o-gamos-mas-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Service (Next.js)
+  backend:
+    build:
+      context: ./src
+      dockerfile: Dockerfile.dev
+    container_name: o-gamos-mas-backend
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/o-gamos-mas?authSource=admin
+      MONGODB_DB: o-gamos-mas
+      PORT: 3000
+      # Bind mounts on Windows/Mac don't reliably propagate native file-change events into
+      # the container, so `next dev` (Turbopack) never notices edits. WATCHPACK_POLLING
+      # makes webpack (see dev:docker script) poll the filesystem for changes instead.
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "3000:3000"
+    networks:
+      - o-gamos-mas-network
+    volumes:
+      - ./src:/app
+      - backend_node_modules:/app/node_modules # Named volume for node_modules
+    command: sh -c "npm install && npm run dev:docker" # Run npm install first, then run the dev server (webpack + polling)
+
+volumes:
+  mongodb_data:
+  mongodb_config:
+  backend_node_modules:
