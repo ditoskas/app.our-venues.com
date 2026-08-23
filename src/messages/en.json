@@ -1,0 +1,275 @@
+{
+  "brand": "O Gamos Mas",
+  "common": {
+    "close": "Close",
+    "actions": "Actions"
+  },
+  "nav": {
+    "weddings": "Weddings",
+    "professionals": "Professionals",
+    "couples": "Couples",
+    "story": "Story",
+    "events": "Events",
+    "guests": "Guests",
+    "settings": "Settings",
+    "profile": "Profile",
+    "logout": "Log out"
+  },
+  "login": {
+    "subtitle": "Sign in to the O Gamos Mas admin.",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Sign in",
+    "submitting": "Signing in…",
+    "errors": {
+      "required": "Username and password are required.",
+      "invalidCredentials": "Incorrect username or password."
+    }
+  },
+  "dashboard": {
+    "eyebrow": "Welcome back",
+    "title": "Dashboard",
+    "subtitle": "A single place to plan and orchestrate every wedding and christening on O Gamos Mas.",
+    "sections": {
+      "weddings": { "label": "Weddings", "description": "Active wedding projects and timelines." },
+      "professionals": { "label": "Professionals", "description": "Photographers, venues, and vendors." },
+      "couples": { "label": "Couples", "description": "Couple profiles and contact details." },
+      "story": { "label": "Story", "description": "Love stories and photo galleries." },
+      "events": { "label": "Events", "description": "Ceremonies, receptions, and dates." },
+      "guests": { "label": "Guests", "description": "Guest lists, RSVPs, and seating." },
+      "settings": { "label": "Settings", "description": "Accounts, branding, preferences." }
+    }
+  },
+  "placeholder": {
+    "comingSoon": "Coming soon",
+    "pages": {
+      "couples": {
+        "title": "Couples",
+        "description": "Profiles for the couples planning their wedding or christening."
+      },
+      "story": {
+        "title": "Story",
+        "description": "Curate the couple's love story, photo galleries, and timeline content."
+      },
+      "events": {
+        "title": "Events",
+        "description": "Schedule ceremonies, receptions, and related events with dates and venues."
+      },
+      "guests": {
+        "title": "Guests",
+        "description": "Guest lists, RSVPs, seating, and invitations for each event."
+      },
+      "general": {
+        "title": "General",
+        "description": "Branding and application-wide preferences."
+      }
+    }
+  },
+  "settings": {
+    "sidebar": {
+      "general": "General",
+      "users": "Users",
+      "subscriptionPackages": "Subscription Packages",
+      "logActions": "LogActions"
+    },
+    "users": {
+      "title": "Users",
+      "newUser": "New user",
+      "editTitle": "Edit user",
+      "table": {
+        "name": "Name",
+        "username": "Username",
+        "role": "Role",
+        "linkedId": "Linked ID"
+      },
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleteConfirm": "Delete?",
+      "confirmAction": "Confirm",
+      "cancel": "Cancel",
+      "form": {
+        "displayName": "Display name",
+        "username": "Username",
+        "password": "Password",
+        "role": "Role",
+        "professionalId": "Professional ID",
+        "coupleId": "Couple ID",
+        "defaultLocale": "Default language",
+        "passwordHintCreate": "Required.",
+        "passwordHintEdit": "Leave blank to keep the current password.",
+        "createSubmit": "Create user",
+        "saveSubmit": "Save changes",
+        "saving": "Saving…"
+      },
+      "roles": {
+        "Root": "Root",
+        "Professional": "Professional",
+        "Couple": "Couple"
+      },
+      "errors": {
+        "required": "Display name, username, and role are required.",
+        "professionalIdRequired": "Professional ID is required for the Professional role.",
+        "coupleIdRequired": "Couple ID is required for the Couple role.",
+        "passwordRequired": "Password is required.",
+        "usernameTaken": "That username is already taken.",
+        "createFailed": "Could not create the user.",
+        "updateFailed": "Could not update the user.",
+        "notFound": "User not found."
+      }
+    },
+    "subscriptionPackages": {
+      "title": "Subscription Packages",
+      "newPackage": "New package",
+      "editTitle": "Edit package",
+      "table": {
+        "name": "Name",
+        "maxUsers": "Max users",
+        "maxBronzeMarriages": "Max bronze marriages",
+        "maxSilverMarriages": "Max silver marriages",
+        "maxGoldMarriages": "Max gold marriages"
+      },
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleteConfirm": "Delete?",
+      "confirmAction": "Confirm",
+      "cancel": "Cancel",
+      "form": {
+        "name": "Name",
+        "description": "Description",
+        "maxUsers": "Max users",
+        "maxBronzeMarriages": "Max bronze marriages",
+        "maxSilverMarriages": "Max silver marriages",
+        "maxGoldMarriages": "Max gold marriages",
+        "createSubmit": "Create package",
+        "saveSubmit": "Save changes",
+        "saving": "Saving…"
+      },
+      "errors": {
+        "required": "Name, description, and all limits are required.",
+        "createFailed": "Could not create the subscription package.",
+        "updateFailed": "Could not update the subscription package.",
+        "notFound": "Subscription package not found.",
+        "forbidden": "You don't have access to this page."
+      }
+    },
+    "logActions": {
+      "title": "LogActions",
+      "description": "Audit trail of actions taken across the admin.",
+      "empty": "No actions logged yet.",
+      "table": {
+        "date": "Date",
+        "user": "User",
+        "type": "Type",
+        "category": "Category",
+        "message": "Message"
+      }
+    }
+  },
+  "languageSwitcher": {
+    "label": "Language",
+    "el": "Greek",
+    "en": "English",
+    "ru": "Russian"
+  },
+  "profile": {
+    "title": "Profile",
+    "accountTitle": "Account",
+    "displayName": "Display name",
+    "language": "Default language",
+    "saveChanges": "Save changes",
+    "saving": "Saving…",
+    "passwordTitle": "Change password",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm new password",
+    "changePassword": "Change password",
+    "changing": "Changing…",
+    "errors": {
+      "displayNameRequired": "Display name is required.",
+      "currentPasswordRequired": "Current password is required.",
+      "currentPasswordIncorrect": "Current password is incorrect.",
+      "newPasswordRequired": "New password is required.",
+      "passwordsDoNotMatch": "New passwords do not match."
+    }
+  },
+  "professionals": {
+    "title": "Professionals",
+    "newProfessional": "New professional",
+    "searchPlaceholder": "Search professionals…",
+    "editTitle": "Edit professional",
+    "table": {
+      "companyName": "Company",
+      "contactPerson": "Contact person",
+      "communication": "Communication"
+    },
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Delete?",
+    "confirmAction": "Confirm",
+    "cancel": "Cancel",
+    "form": {
+      "companyName": "Company name",
+      "contactPerson": "Contact person",
+      "phone": "Phone",
+      "mobile": "Mobile",
+      "email": "Email",
+      "website": "Website",
+      "country": "Country",
+      "city": "City",
+      "address": "Address",
+      "postCode": "Post code",
+      "logo": "Logo",
+      "logoHint": "PNG, JPG, WEBP, GIF, or SVG.",
+      "createSubmit": "Create professional",
+      "saveSubmit": "Save changes",
+      "saving": "Saving…"
+    },
+    "errors": {
+      "required": "Company name, contact person, phone, mobile, and email are required.",
+      "createFailed": "Could not create the professional.",
+      "updateFailed": "Could not update the professional.",
+      "notFound": "Professional not found.",
+      "forbidden": "You don't have access to this page."
+    }
+  },
+  "weddings": {
+    "title": "Weddings",
+    "newMarriage": "New marriage",
+    "searchPlaceholder": "Search marriages…",
+    "editTitle": "Edit marriage",
+    "table": {
+      "title": "Title",
+      "husband": "Husband",
+      "wife": "Wife",
+      "professional": "Professional"
+    },
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Delete?",
+    "confirmAction": "Confirm",
+    "cancel": "Cancel",
+    "form": {
+      "title": "Title",
+      "titlePlaceholder": "e.g. Dimitris & Maria Marriage",
+      "professional": "Professional",
+      "professionalPlaceholder": "Search professionals…",
+      "husband": "Husband",
+      "wife": "Wife",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "email": "Email",
+      "mobile": "Mobile",
+      "createSubmit": "Create marriage",
+      "saveSubmit": "Save changes",
+      "saving": "Saving…"
+    },
+    "errors": {
+      "required": "Title, professional, and both spouses' first/last name are required.",
+      "professionalRequired": "Select a professional.",
+      "createFailed": "Could not create the marriage.",
+      "updateFailed": "Could not update the marriage.",
+      "notFound": "Marriage not found.",
+      "forbidden": "You don't have access to this page."
+    }
+  }
+}

@@ -40,6 +40,8 @@ services:
       NODE_ENV: development
       MONGODB_URI: mongodb://admin:password@mongodb:27017/o-gamos-mas?authSource=admin
       MONGODB_DB: o-gamos-mas
+      SESSION_SECRET: dev-session-secret-change-me
+      UPLOADS_DIR: /shared
       PORT: 3000
       # Bind mounts on Windows/Mac don't reliably propagate native file-change events into
       # the container, so `next dev` (Turbopack) never notices edits. WATCHPACK_POLLING
@@ -52,6 +54,7 @@ services:
     volumes:
       - ./src:/app
       - backend_node_modules:/app/node_modules # Named volume for node_modules
+      - C:/Shared/o-gamos-mas:/shared # Uploaded files (professional logos, etc.)
     command: sh -c "npm install && npm run dev:docker" # Run npm install first, then run the dev server (webpack + polling)
 
 volumes:

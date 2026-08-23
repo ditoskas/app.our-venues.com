@@ -1,33 +1,38 @@
 import { MongoClient } from "mongodb";
 
-const uri = process.env.MONGODB_URI;
-
-if (!uri) {
-  throw new Error('Missing environment variable: "MONGODB_URI"');
-}
-
-let client: MongoClient;
-let clientPromise: Promise<MongoClient>;
-
 declare global {
   var _mongoClientPromise: Promise<MongoClient> | undefined;
 }
 
-if (process.env.NODE_ENV === "development") {
-  // Reuse the client across hot reloads in dev so we don't exhaust connections.
-  if (!global._mongoClientPromise) {
-    client = new MongoClient(uri);
-    global._mongoClientPromise = client.connect();
+let clientPromise: Promise<MongoClient> | undefined;
+
+function connect(): Promise<MongoClient> {
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    throw new Error('Missing environment variable: "MONGODB_URI"');
   }
-  clientPromise = global._mongoClientPromise;
-} else {
-  client = new MongoClient(uri);
-  clientPromise = client.connect();
+  return new MongoClient(uri).connect();
 }
 
-export default clientPromise;
+// Deliberately lazy: the URI is only required once a caller actually needs
+// the database, not just from importing this module (Next.js imports route
+// modules to collect metadata at build time, even for pages that opt out of
+// static generation).
+function getClientPromise(): Promise<MongoClient> {
+  if (process.env.NODE_ENV === "development") {
+    // Reuse the client across hot reloads in dev so we don't exhaust connections.
+    if (!global._mongoClientPromise) {
+      global._mongoClientPromise = connect();
+    }
+    return global._mongoClientPromise;
+  }
+  if (!clientPromise) {
+    clientPromise = connect();
+  }
+  return clientPromise;
+}
 
 export async function getDb() {
-  const client = await clientPromise;
+  const client = await getClientPromise();
   return client.db(process.env.MONGODB_DB);
 }

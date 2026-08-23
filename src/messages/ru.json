@@ -1,0 +1,275 @@
+{
+  "brand": "O Gamos Mas",
+  "common": {
+    "close": "Закрыть",
+    "actions": "Действия"
+  },
+  "nav": {
+    "weddings": "Свадьбы",
+    "professionals": "Специалисты",
+    "couples": "Пары",
+    "story": "История",
+    "events": "Мероприятия",
+    "guests": "Гости",
+    "settings": "Настройки",
+    "profile": "Профиль",
+    "logout": "Выйти"
+  },
+  "login": {
+    "subtitle": "Войдите в панель управления O Gamos Mas.",
+    "username": "Логин",
+    "password": "Пароль",
+    "submit": "Войти",
+    "submitting": "Выполняется вход…",
+    "errors": {
+      "required": "Логин и пароль обязательны.",
+      "invalidCredentials": "Неверный логин или пароль."
+    }
+  },
+  "dashboard": {
+    "eyebrow": "С возвращением",
+    "title": "Панель управления",
+    "subtitle": "Единое место для планирования и организации каждой свадьбы и крещения на O Gamos Mas.",
+    "sections": {
+      "weddings": { "label": "Свадьбы", "description": "Текущие свадебные проекты и графики." },
+      "professionals": { "label": "Специалисты", "description": "Фотографы, площадки и поставщики услуг." },
+      "couples": { "label": "Пары", "description": "Профили пар и контактные данные." },
+      "story": { "label": "История", "description": "Истории любви и фотогалереи." },
+      "events": { "label": "Мероприятия", "description": "Церемонии, приёмы и даты." },
+      "guests": { "label": "Гости", "description": "Списки гостей, подтверждения участия и рассадка." },
+      "settings": { "label": "Настройки", "description": "Аккаунты, брендинг, настройки приложения." }
+    }
+  },
+  "placeholder": {
+    "comingSoon": "Скоро появится",
+    "pages": {
+      "couples": {
+        "title": "Пары",
+        "description": "Профили пар, планирующих свадьбу или крещение."
+      },
+      "story": {
+        "title": "История",
+        "description": "Формируйте историю любви пары, фотогалереи и хронологию событий."
+      },
+      "events": {
+        "title": "Мероприятия",
+        "description": "Планируйте церемонии, приёмы и другие мероприятия с датами и площадками."
+      },
+      "guests": {
+        "title": "Гости",
+        "description": "Списки гостей, подтверждения участия, рассадка и приглашения для каждого мероприятия."
+      },
+      "general": {
+        "title": "Общие",
+        "description": "Брендинг и общие настройки приложения."
+      }
+    }
+  },
+  "settings": {
+    "sidebar": {
+      "general": "Общие",
+      "users": "Пользователи",
+      "subscriptionPackages": "Тарифные планы",
+      "logActions": "LogActions"
+    },
+    "users": {
+      "title": "Пользователи",
+      "newUser": "Новый пользователь",
+      "editTitle": "Редактирование пользователя",
+      "table": {
+        "name": "Имя",
+        "username": "Логин",
+        "role": "Роль",
+        "linkedId": "Связанный ID"
+      },
+      "edit": "Изменить",
+      "delete": "Удалить",
+      "deleteConfirm": "Удалить?",
+      "confirmAction": "Подтвердить",
+      "cancel": "Отмена",
+      "form": {
+        "displayName": "Отображаемое имя",
+        "username": "Логин",
+        "password": "Пароль",
+        "role": "Роль",
+        "professionalId": "ID специалиста",
+        "coupleId": "ID пары",
+        "defaultLocale": "Язык по умолчанию",
+        "passwordHintCreate": "Обязательно.",
+        "passwordHintEdit": "Оставьте пустым, чтобы сохранить текущий пароль.",
+        "createSubmit": "Создать пользователя",
+        "saveSubmit": "Сохранить изменения",
+        "saving": "Сохранение…"
+      },
+      "roles": {
+        "Root": "Администратор",
+        "Professional": "Специалист",
+        "Couple": "Пара"
+      },
+      "errors": {
+        "required": "Отображаемое имя, логин и роль обязательны.",
+        "professionalIdRequired": "Для роли «Специалист» требуется ID специалиста.",
+        "coupleIdRequired": "Для роли «Пара» требуется ID пары.",
+        "passwordRequired": "Требуется пароль.",
+        "usernameTaken": "Этот логин уже занят.",
+        "createFailed": "Не удалось создать пользователя.",
+        "updateFailed": "Не удалось обновить пользователя.",
+        "notFound": "Пользователь не найден."
+      }
+    },
+    "subscriptionPackages": {
+      "title": "Тарифные планы",
+      "newPackage": "Новый тариф",
+      "editTitle": "Редактирование тарифа",
+      "table": {
+        "name": "Название",
+        "maxUsers": "Макс. пользователей",
+        "maxBronzeMarriages": "Макс. бронзовых свадеб",
+        "maxSilverMarriages": "Макс. серебряных свадеб",
+        "maxGoldMarriages": "Макс. золотых свадеб"
+      },
+      "edit": "Изменить",
+      "delete": "Удалить",
+      "deleteConfirm": "Удалить?",
+      "confirmAction": "Подтвердить",
+      "cancel": "Отмена",
+      "form": {
+        "name": "Название",
+        "description": "Описание",
+        "maxUsers": "Максимум пользователей",
+        "maxBronzeMarriages": "Максимум бронзовых свадеб",
+        "maxSilverMarriages": "Максимум серебряных свадеб",
+        "maxGoldMarriages": "Максимум золотых свадеб",
+        "createSubmit": "Создать тариф",
+        "saveSubmit": "Сохранить изменения",
+        "saving": "Сохранение…"
+      },
+      "errors": {
+        "required": "Название, описание и все лимиты обязательны.",
+        "createFailed": "Не удалось создать тарифный план.",
+        "updateFailed": "Не удалось обновить тарифный план.",
+        "notFound": "Тарифный план не найден.",
+        "forbidden": "У вас нет доступа к этой странице."
+      }
+    },
+    "logActions": {
+      "title": "LogActions",
+      "description": "Журнал действий во всей административной панели.",
+      "empty": "Пока не зафиксировано ни одного действия.",
+      "table": {
+        "date": "Дата",
+        "user": "Пользователь",
+        "type": "Тип",
+        "category": "Категория",
+        "message": "Сообщение"
+      }
+    }
+  },
+  "languageSwitcher": {
+    "label": "Язык",
+    "el": "Греческий",
+    "en": "Английский",
+    "ru": "Русский"
+  },
+  "profile": {
+    "title": "Профиль",
+    "accountTitle": "Аккаунт",
+    "displayName": "Отображаемое имя",
+    "language": "Язык по умолчанию",
+    "saveChanges": "Сохранить изменения",
+    "saving": "Сохранение…",
+    "passwordTitle": "Смена пароля",
+    "currentPassword": "Текущий пароль",
+    "newPassword": "Новый пароль",
+    "confirmPassword": "Подтвердите новый пароль",
+    "changePassword": "Сменить пароль",
+    "changing": "Смена пароля…",
+    "errors": {
+      "displayNameRequired": "Отображаемое имя обязательно.",
+      "currentPasswordRequired": "Требуется текущий пароль.",
+      "currentPasswordIncorrect": "Текущий пароль неверен.",
+      "newPasswordRequired": "Требуется новый пароль.",
+      "passwordsDoNotMatch": "Новые пароли не совпадают."
+    }
+  },
+  "professionals": {
+    "title": "Специалисты",
+    "newProfessional": "Новый специалист",
+    "searchPlaceholder": "Поиск специалистов…",
+    "editTitle": "Редактирование специалиста",
+    "table": {
+      "companyName": "Компания",
+      "contactPerson": "Контактное лицо",
+      "communication": "Связь"
+    },
+    "edit": "Изменить",
+    "delete": "Удалить",
+    "deleteConfirm": "Удалить?",
+    "confirmAction": "Подтвердить",
+    "cancel": "Отмена",
+    "form": {
+      "companyName": "Название компании",
+      "contactPerson": "Контактное лицо",
+      "phone": "Телефон",
+      "mobile": "Мобильный",
+      "email": "Email",
+      "website": "Веб-сайт",
+      "country": "Страна",
+      "city": "Город",
+      "address": "Адрес",
+      "postCode": "Почтовый индекс",
+      "logo": "Логотип",
+      "logoHint": "PNG, JPG, WEBP, GIF или SVG.",
+      "createSubmit": "Создать специалиста",
+      "saveSubmit": "Сохранить изменения",
+      "saving": "Сохранение…"
+    },
+    "errors": {
+      "required": "Название компании, контактное лицо, телефон, мобильный и email обязательны.",
+      "createFailed": "Не удалось создать специалиста.",
+      "updateFailed": "Не удалось обновить специалиста.",
+      "notFound": "Специалист не найден.",
+      "forbidden": "У вас нет доступа к этой странице."
+    }
+  },
+  "weddings": {
+    "title": "Свадьбы",
+    "newMarriage": "Новый брак",
+    "searchPlaceholder": "Поиск браков…",
+    "editTitle": "Редактирование брака",
+    "table": {
+      "title": "Название",
+      "husband": "Жених",
+      "wife": "Невеста",
+      "professional": "Специалист"
+    },
+    "edit": "Изменить",
+    "delete": "Удалить",
+    "deleteConfirm": "Удалить?",
+    "confirmAction": "Подтвердить",
+    "cancel": "Отмена",
+    "form": {
+      "title": "Название",
+      "titlePlaceholder": "напр. Свадьба Димитриса и Марии",
+      "professional": "Специалист",
+      "professionalPlaceholder": "Поиск специалистов…",
+      "husband": "Жених",
+      "wife": "Невеста",
+      "firstName": "Имя",
+      "lastName": "Фамилия",
+      "email": "Email",
+      "mobile": "Мобильный",
+      "createSubmit": "Создать брак",
+      "saveSubmit": "Сохранить изменения",
+      "saving": "Сохранение…"
+    },
+    "errors": {
+      "required": "Название, специалист, а также имя и фамилия обоих супругов обязательны.",
+      "professionalRequired": "Выберите специалиста.",
+      "createFailed": "Не удалось создать запись о браке.",
+      "updateFailed": "Не удалось обновить запись о браке.",
+      "notFound": "Запись о браке не найдена.",
+      "forbidden": "У вас нет доступа к этой странице."
+    }
+  }
+}
