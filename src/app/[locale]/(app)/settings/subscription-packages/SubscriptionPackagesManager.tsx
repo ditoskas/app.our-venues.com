@@ -18,9 +18,9 @@ export interface SerializedSubscriptionPackage {
   name: string;
   description: string;
   maxUsers: number;
-  maxBronzeMarriages: number;
-  maxSilverMarriages: number;
-  maxGoldMarriages: number;
+  maxBronzeCelebrations: number;
+  maxSilverCelebrations: number;
+  maxGoldCelebrations: number;
 }
 
 type DialogState =
@@ -58,20 +58,20 @@ export default function SubscriptionPackagesManager({
             <tr>
               <th className="px-4 py-3">{t("table.name")}</th>
               <th className="px-4 py-3">{t("table.maxUsers")}</th>
-              <th className="px-4 py-3">{t("table.maxBronzeMarriages")}</th>
-              <th className="px-4 py-3">{t("table.maxSilverMarriages")}</th>
-              <th className="px-4 py-3">{t("table.maxGoldMarriages")}</th>
+              <th className="px-4 py-3">{t("table.maxBronzeCelebrations")}</th>
+              <th className="px-4 py-3">{t("table.maxSilverCelebrations")}</th>
+              <th className="px-4 py-3">{t("table.maxGoldCelebrations")}</th>
               <th className="px-4 py-3 text-right">{tCommon("actions")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {packages.map((pkg) => (
-              <tr key={pkg._id}>
+              <tr key={pkg._id} className="odd:bg-surface even:bg-accent-soft/15">
                 <td className="px-4 py-3 text-foreground">{pkg.name}</td>
                 <td className="px-4 py-3 text-muted">{pkg.maxUsers}</td>
-                <td className="px-4 py-3 text-muted">{pkg.maxBronzeMarriages}</td>
-                <td className="px-4 py-3 text-muted">{pkg.maxSilverMarriages}</td>
-                <td className="px-4 py-3 text-muted">{pkg.maxGoldMarriages}</td>
+                <td className="px-4 py-3 text-muted">{pkg.maxBronzeCelebrations}</td>
+                <td className="px-4 py-3 text-muted">{pkg.maxSilverCelebrations}</td>
+                <td className="px-4 py-3 text-muted">{pkg.maxGoldCelebrations}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-4">
                     <button

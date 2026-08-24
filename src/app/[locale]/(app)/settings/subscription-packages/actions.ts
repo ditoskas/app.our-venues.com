@@ -38,17 +38,17 @@ function readSubscriptionPackageForm(
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const maxUsers = parseNonNegativeInt(formData.get("maxUsers"));
-  const maxBronzeMarriages = parseNonNegativeInt(formData.get("maxBronzeMarriages"));
-  const maxSilverMarriages = parseNonNegativeInt(formData.get("maxSilverMarriages"));
-  const maxGoldMarriages = parseNonNegativeInt(formData.get("maxGoldMarriages"));
+  const maxBronzeCelebrations = parseNonNegativeInt(formData.get("maxBronzeCelebrations"));
+  const maxSilverCelebrations = parseNonNegativeInt(formData.get("maxSilverCelebrations"));
+  const maxGoldCelebrations = parseNonNegativeInt(formData.get("maxGoldCelebrations"));
 
   if (
     !name ||
     !description ||
     maxUsers === null ||
-    maxBronzeMarriages === null ||
-    maxSilverMarriages === null ||
-    maxGoldMarriages === null
+    maxBronzeCelebrations === null ||
+    maxSilverCelebrations === null ||
+    maxGoldCelebrations === null
   ) {
     return { error: "required" };
   }
@@ -57,9 +57,9 @@ function readSubscriptionPackageForm(
     name,
     description,
     maxUsers,
-    maxBronzeMarriages,
-    maxSilverMarriages,
-    maxGoldMarriages,
+    maxBronzeCelebrations,
+    maxSilverCelebrations,
+    maxGoldCelebrations,
   };
 }
 

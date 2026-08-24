@@ -17,7 +17,7 @@ export default function ProfessionalPicker({
   defaultValue?: string;
   name?: string;
 }) {
-  const t = useTranslations("weddings.form");
+  const t = useTranslations("celebrations.form");
   const listId = useId();
   const initial = professionals.find((p) => p._id === defaultValue);
   const [query, setQuery] = useState(initial?.companyName ?? "");

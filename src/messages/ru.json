@@ -5,7 +5,7 @@
     "actions": "Действия"
   },
   "nav": {
-    "weddings": "Свадьбы",
+    "celebrations": "Торжества",
     "professionals": "Специалисты",
     "couples": "Пары",
     "story": "История",
@@ -31,7 +31,7 @@
     "title": "Панель управления",
     "subtitle": "Единое место для планирования и организации каждой свадьбы и крещения на O Gamos Mas.",
     "sections": {
-      "weddings": { "label": "Свадьбы", "description": "Текущие свадебные проекты и графики." },
+      "celebrations": { "label": "Торжества", "description": "Активные свадебные и крестильные торжества." },
       "professionals": { "label": "Специалисты", "description": "Фотографы, площадки и поставщики услуг." },
       "couples": { "label": "Пары", "description": "Профили пар и контактные данные." },
       "story": { "label": "История", "description": "Истории любви и фотогалереи." },
@@ -124,9 +124,9 @@
       "table": {
         "name": "Название",
         "maxUsers": "Макс. пользователей",
-        "maxBronzeMarriages": "Макс. бронзовых свадеб",
-        "maxSilverMarriages": "Макс. серебряных свадеб",
-        "maxGoldMarriages": "Макс. золотых свадеб"
+        "maxBronzeCelebrations": "Макс. бронзовых торжеств",
+        "maxSilverCelebrations": "Макс. серебряных торжеств",
+        "maxGoldCelebrations": "Макс. золотых торжеств"
       },
       "edit": "Изменить",
       "delete": "Удалить",
@@ -137,9 +137,9 @@
         "name": "Название",
         "description": "Описание",
         "maxUsers": "Максимум пользователей",
-        "maxBronzeMarriages": "Максимум бронзовых свадеб",
-        "maxSilverMarriages": "Максимум серебряных свадеб",
-        "maxGoldMarriages": "Максимум золотых свадеб",
+        "maxBronzeCelebrations": "Максимум бронзовых торжеств",
+        "maxSilverCelebrations": "Максимум серебряных торжеств",
+        "maxGoldCelebrations": "Максимум золотых торжеств",
         "createSubmit": "Создать тариф",
         "saveSubmit": "Сохранить изменения",
         "saving": "Сохранение…"
@@ -232,16 +232,202 @@
       "forbidden": "У вас нет доступа к этой странице."
     }
   },
-  "weddings": {
-    "title": "Свадьбы",
-    "newMarriage": "Новый брак",
-    "searchPlaceholder": "Поиск браков…",
-    "editTitle": "Редактирование брака",
+  "celebrations": {
+    "title": "Торжества",
+    "newCelebration": "Новое торжество",
+    "searchPlaceholder": "Поиск торжеств…",
+    "editTitle": "Редактирование торжества",
+    "view": "Просмотр",
+    "backToList": "Назад к торжествам",
+    "copyGuid": "Скопировать GUID",
+    "guidCopied": "Скопировано!",
+    "languages": {
+      "el": "Греческий",
+      "en": "Английский",
+      "ru": "Русский"
+    },
     "table": {
       "title": "Название",
+      "type": "Тип",
       "husband": "Жених",
       "wife": "Невеста",
       "professional": "Специалист"
+    },
+    "types": {
+      "Marriage": "Свадьба",
+      "Christening": "Крещение"
+    },
+    "tabs": {
+      "celebrationInfo": "О торжестве",
+      "coupleInfo": "О паре",
+      "story": "История",
+      "events": "Мероприятия",
+      "liveEvents": "Прямой эфир",
+      "guests": "Гости"
+    },
+    "info": {
+      "celebrationDate": "Дата торжества",
+      "headline": "Заголовок",
+      "quote": "Цитата",
+      "countdownParagraph": "Абзац обратного отсчёта",
+      "activeLanguages": "Активные языки",
+      "activeLanguagesHint": "На каких языках будет отображаться переводимый контент этого торжества (заголовок, цитата, абзац обратного отсчёта, мероприятия, история). Греческий всегда включён.",
+      "heroBackground": "Фоновое изображение",
+      "heroBackgroundHint": "PNG, JPG, WEBP, GIF или SVG.",
+      "invitation": "Приглашение",
+      "invitationHint": "PNG, JPG, WEBP, GIF или SVG.",
+      "maxGuestsPerInvitation": "Макс. гостей на приглашение",
+      "showMaxGuests": "Показывать макс. гостей",
+      "showSeating": "Показывать рассадку",
+      "showLive": "Показывать трансляцию",
+      "showReservation": "Показывать бронирование",
+      "isSitePublic": "Публично на сайте клиента",
+      "saveSubmit": "Сохранить изменения",
+      "saving": "Сохранение…",
+      "errors": {
+        "required": "Название обязательно."
+      }
+    },
+    "coupleInfo": {
+      "saveSubmit": "Сохранить изменения",
+      "saving": "Сохранение…",
+      "errors": {
+        "required": "Имя и фамилия обязательны для жениха и невесты."
+      }
+    },
+    "story": {
+      "title": "Название",
+      "subtitle": "Подзаголовок",
+      "paragraph": "Абзац",
+      "saveSubmit": "Сохранить изменения",
+      "saving": "Сохранение…",
+      "errors": {
+        "titleRequired": "Название обязательно."
+      },
+      "timeline": {
+        "title": "Хронология",
+        "add": "Добавить пункт",
+        "newTitle": "Новый пункт хронологии",
+        "editTitle": "Редактирование пункта хронологии",
+        "empty": "Пунктов хронологии пока нет.",
+        "table": {
+          "title": "Название",
+          "description": "Описание",
+          "date": "Дата",
+          "image": "Изображение"
+        },
+        "form": {
+          "title": "Название",
+          "description": "Описание",
+          "date": "Дата",
+          "image": "Изображение",
+          "createSubmit": "Добавить пункт",
+          "saveSubmit": "Сохранить изменения",
+          "saving": "Сохранение…"
+        },
+        "edit": "Изменить",
+        "delete": "Удалить",
+        "deleteConfirm": "Удалить?",
+        "confirmAction": "Подтвердить",
+        "cancel": "Отмена"
+      }
+    },
+    "events": {
+      "add": "Добавить мероприятие",
+      "newTitle": "Новое мероприятие",
+      "editTitle": "Редактирование мероприятия",
+      "empty": "Мероприятий пока нет.",
+      "viewOnMap": "Показать на карте",
+      "table": {
+        "title": "Название",
+        "description": "Описание",
+        "area": "Зона",
+        "date": "Дата",
+        "city": "Город",
+        "address": "Адрес",
+        "postCode": "Почтовый индекс",
+        "country": "Страна",
+        "map": "Карта"
+      },
+      "form": {
+        "title": "Название",
+        "description": "Описание",
+        "area": "Зона",
+        "date": "Дата",
+        "city": "Город",
+        "address": "Адрес",
+        "postCode": "Почтовый индекс",
+        "country": "Страна",
+        "location": "Местоположение",
+        "mapPoint": "Точка Google Maps",
+        "createSubmit": "Добавить мероприятие",
+        "saveSubmit": "Сохранить изменения",
+        "saving": "Сохранение…"
+      },
+      "map": {
+        "noKey": "Google Maps не настроен (отсутствует ключ API).",
+        "error": "Не удалось загрузить Google Maps.",
+        "hint": "Нажмите на карту или перетащите маркер, чтобы указать точное место."
+      },
+      "edit": "Изменить",
+      "delete": "Удалить",
+      "deleteConfirm": "Удалить?",
+      "confirmAction": "Подтвердить",
+      "cancel": "Отмена",
+      "errors": {
+        "titleRequired": "Название обязательно."
+      }
+    },
+    "liveEvents": {
+      "empty": "Пока нет фотографий с прямого эфира.",
+      "table": {
+        "image": "Изображение",
+        "location": "Место",
+        "uploadedBy": "Загрузил(а)",
+        "uploadedDate": "Дата загрузки",
+        "title": "Название",
+        "description": "Описание"
+      },
+      "delete": "Удалить",
+      "deleteConfirm": "Удалить?",
+      "confirmAction": "Подтвердить",
+      "cancel": "Отмена"
+    },
+    "guests": {
+      "add": "Добавить гостя",
+      "newTitle": "Новый гость",
+      "editTitle": "Редактирование гостя",
+      "empty": "Гостей пока нет.",
+      "confirmed": "Подтверждено",
+      "denied": "Отклонено",
+      "table": {
+        "name": "Имя гостя",
+        "communication": "Связь",
+        "expectedAttendees": "Ожидаемые участники",
+        "confirmedAttendees": "Подтверждённые участники",
+        "confirmationDate": "Дата подтверждения"
+      },
+      "form": {
+        "name": "Имя гостя",
+        "phone": "Телефон",
+        "email": "Email",
+        "expectedAttendees": "Ожидаемые участники",
+        "confirmedAttendees": "Подтверждённые участники",
+        "confirmationDate": "Дата подтверждения",
+        "createSubmit": "Добавить гостя",
+        "saveSubmit": "Сохранить изменения",
+        "saving": "Сохранение…"
+      },
+      "edit": "Изменить",
+      "delete": "Удалить",
+      "deleteConfirm": "Удалить?",
+      "confirmAction": "Подтвердить",
+      "cancel": "Отмена",
+      "errors": {
+        "nameRequired": "Имя гостя обязательно.",
+        "emailTaken": "У другого гостя этого торжества уже указан этот email.",
+        "phoneTaken": "У другого гостя этого торжества уже указан этот номер телефона."
+      }
     },
     "edit": "Изменить",
     "delete": "Удалить",
@@ -251,6 +437,7 @@
     "form": {
       "title": "Название",
       "titlePlaceholder": "напр. Свадьба Димитриса и Марии",
+      "type": "Тип",
       "professional": "Специалист",
       "professionalPlaceholder": "Поиск специалистов…",
       "husband": "Жених",
@@ -259,16 +446,16 @@
       "lastName": "Фамилия",
       "email": "Email",
       "mobile": "Мобильный",
-      "createSubmit": "Создать брак",
+      "createSubmit": "Создать торжество",
       "saveSubmit": "Сохранить изменения",
       "saving": "Сохранение…"
     },
     "errors": {
-      "required": "Название, специалист, а также имя и фамилия обоих супругов обязательны.",
+      "required": "Название, тип, специалист, а также имя и фамилия обоих участников обязательны.",
       "professionalRequired": "Выберите специалиста.",
-      "createFailed": "Не удалось создать запись о браке.",
-      "updateFailed": "Не удалось обновить запись о браке.",
-      "notFound": "Запись о браке не найдена.",
+      "createFailed": "Не удалось создать торжество.",
+      "updateFailed": "Не удалось обновить торжество.",
+      "notFound": "Торжество не найдено.",
       "forbidden": "У вас нет доступа к этой странице."
     }
   }

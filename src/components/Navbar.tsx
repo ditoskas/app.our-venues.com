@@ -4,15 +4,7 @@ import { useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import UserMenu from "./UserMenu";
 
-const NAV_KEYS = [
-  "weddings",
-  "professionals",
-  "couples",
-  "story",
-  "events",
-  "guests",
-  "settings",
-] as const;
+const NAV_KEYS = ["celebrations", "professionals", "settings"] as const;
 
 export default function Navbar({
   displayName,

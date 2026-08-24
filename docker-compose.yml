@@ -43,6 +43,11 @@ services:
       SESSION_SECRET: dev-session-secret-change-me
       UPLOADS_DIR: /shared
       PORT: 3000
+      # Read from a root-level .env file (gitignored, copy from .env.example) —
+      # unlike the values above, this is a real secret, so it isn't hardcoded
+      # here. Empty/unset is fine: the map picker just shows a "not configured"
+      # message instead of a map.
+      NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
       # Bind mounts on Windows/Mac don't reliably propagate native file-change events into
       # the container, so `next dev` (Turbopack) never notices edits. WATCHPACK_POLLING
       # makes webpack (see dev:docker script) poll the filesystem for changes instead.
@@ -57,7 +62,42 @@ services:
       - C:/Shared/o-gamos-mas:/shared # Uploaded files (professional logos, etc.)
     command: sh -c "npm install && npm run dev:docker" # Run npm install first, then run the dev server (webpack + polling)
 
+  # Frontend Service (Vite + React, public site) — lives in a sibling repo,
+  # see CLAUDE.md "Frontend". Runs the Vite dev server (Dockerfile.dev) with
+  # live HMR, same live-reload pattern as the backend service above — edits
+  # under ../frontend.o-gamos-mas.com take effect immediately, no rebuild
+  # needed. The production Dockerfile (multi-stage build → nginx) is
+  # separate and only used for real deployments.
+  frontend:
+    build:
+      context: ../frontend.o-gamos-mas.com
+      dockerfile: Dockerfile.dev
+    container_name: o-gamos-mas-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # Vite env vars are read at dev-server start, not build time here —
+      # this points at the backend's host-mapped port since the app runs in
+      # the visitor's browser, not inside the Docker network.
+      VITE_API_BASE_URL: http://localhost:3000/api
+      VITE_CELEBRATION_ID: 3fe69f43-ef7c-4aef-9ba1-0e68275e0d98
+      # Bind mounts on Windows/Mac don't reliably propagate native
+      # file-change events into the container, so Vite's watcher (chokidar)
+      # never notices edits without polling — same reason the backend needs
+      # WATCHPACK_POLLING above.
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "3001:3001"
+    networks:
+      - o-gamos-mas-network
+    volumes:
+      - ../frontend.o-gamos-mas.com:/app
+      - frontend_node_modules:/app/node_modules # Named volume for node_modules
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 3001"
+
 volumes:
   mongodb_data:
   mongodb_config:
   backend_node_modules:
+  frontend_node_modules:

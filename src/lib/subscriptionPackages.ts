@@ -8,9 +8,9 @@ export interface SubscriptionPackage {
   name: string;
   description: string;
   maxUsers: number;
-  maxBronzeMarriages: number;
-  maxSilverMarriages: number;
-  maxGoldMarriages: number;
+  maxBronzeCelebrations: number;
+  maxSilverCelebrations: number;
+  maxGoldCelebrations: number;
   createdAt: Date;
 }
 
@@ -18,9 +18,9 @@ export interface SubscriptionPackageInput {
   name: string;
   description: string;
   maxUsers: number;
-  maxBronzeMarriages: number;
-  maxSilverMarriages: number;
-  maxGoldMarriages: number;
+  maxBronzeCelebrations: number;
+  maxSilverCelebrations: number;
+  maxGoldCelebrations: number;
 }
 
 async function subscriptionPackagesCollection(): Promise<

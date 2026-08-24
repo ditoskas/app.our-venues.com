@@ -99,7 +99,7 @@ export default function ProfessionalsManager({
           </thead>
           <tbody className="divide-y divide-border">
             {filtered.map((p) => (
-              <tr key={p._id}>
+              <tr key={p._id} className="odd:bg-surface even:bg-accent-soft/15">
                 <td className="px-4 py-3">
                   {p.logoFilename ? (
                     // eslint-disable-next-line @next/next/no-img-element

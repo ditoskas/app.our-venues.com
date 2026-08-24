@@ -1,2 +1,7 @@
+# env files (used by docker-compose for variable substitution — see .env.example)
+.env
+.env.*
+!.env.example
+
 # IDE
 .idea

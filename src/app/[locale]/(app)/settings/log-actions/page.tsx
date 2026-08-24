@@ -42,7 +42,10 @@ export default async function LogActionsPage() {
             </thead>
             <tbody className="divide-y divide-border">
               {entries.map((entry) => (
-                <tr key={entry._id.toString()} className="align-top">
+                <tr
+                  key={entry._id.toString()}
+                  className="align-top odd:bg-surface even:bg-accent-soft/15"
+                >
                   <td className="px-4 py-3 whitespace-nowrap text-muted">
                     {format.dateTime(entry.createdAt, {
                       dateStyle: "medium",

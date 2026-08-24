@@ -5,7 +5,7 @@
     "actions": "Actions"
   },
   "nav": {
-    "weddings": "Weddings",
+    "celebrations": "Celebrations",
     "professionals": "Professionals",
     "couples": "Couples",
     "story": "Story",
@@ -31,7 +31,7 @@
     "title": "Dashboard",
     "subtitle": "A single place to plan and orchestrate every wedding and christening on O Gamos Mas.",
     "sections": {
-      "weddings": { "label": "Weddings", "description": "Active wedding projects and timelines." },
+      "celebrations": { "label": "Celebrations", "description": "Active marriage and christening celebrations." },
       "professionals": { "label": "Professionals", "description": "Photographers, venues, and vendors." },
       "couples": { "label": "Couples", "description": "Couple profiles and contact details." },
       "story": { "label": "Story", "description": "Love stories and photo galleries." },
@@ -124,9 +124,9 @@
       "table": {
         "name": "Name",
         "maxUsers": "Max users",
-        "maxBronzeMarriages": "Max bronze marriages",
-        "maxSilverMarriages": "Max silver marriages",
-        "maxGoldMarriages": "Max gold marriages"
+        "maxBronzeCelebrations": "Max bronze celebrations",
+        "maxSilverCelebrations": "Max silver celebrations",
+        "maxGoldCelebrations": "Max gold celebrations"
       },
       "edit": "Edit",
       "delete": "Delete",
@@ -137,9 +137,9 @@
         "name": "Name",
         "description": "Description",
         "maxUsers": "Max users",
-        "maxBronzeMarriages": "Max bronze marriages",
-        "maxSilverMarriages": "Max silver marriages",
-        "maxGoldMarriages": "Max gold marriages",
+        "maxBronzeCelebrations": "Max bronze celebrations",
+        "maxSilverCelebrations": "Max silver celebrations",
+        "maxGoldCelebrations": "Max gold celebrations",
         "createSubmit": "Create package",
         "saveSubmit": "Save changes",
         "saving": "Saving…"
@@ -232,16 +232,202 @@
       "forbidden": "You don't have access to this page."
     }
   },
-  "weddings": {
-    "title": "Weddings",
-    "newMarriage": "New marriage",
-    "searchPlaceholder": "Search marriages…",
-    "editTitle": "Edit marriage",
+  "celebrations": {
+    "title": "Celebrations",
+    "newCelebration": "New celebration",
+    "searchPlaceholder": "Search celebrations…",
+    "editTitle": "Edit celebration",
+    "view": "View",
+    "backToList": "Back to celebrations",
+    "copyGuid": "Copy GUID",
+    "guidCopied": "Copied!",
+    "languages": {
+      "el": "Greek",
+      "en": "English",
+      "ru": "Russian"
+    },
     "table": {
       "title": "Title",
+      "type": "Type",
       "husband": "Husband",
       "wife": "Wife",
       "professional": "Professional"
+    },
+    "types": {
+      "Marriage": "Marriage",
+      "Christening": "Christening"
+    },
+    "tabs": {
+      "celebrationInfo": "Celebration Info",
+      "coupleInfo": "Couple Info",
+      "story": "Story",
+      "events": "Events",
+      "liveEvents": "Live Events",
+      "guests": "Guests"
+    },
+    "info": {
+      "celebrationDate": "Celebration Date",
+      "headline": "Headline",
+      "quote": "Quote",
+      "countdownParagraph": "Countdown Paragraph",
+      "activeLanguages": "Active Languages",
+      "activeLanguagesHint": "Which languages this celebration's translatable content (Headline, Quote, Countdown Paragraph, Events, Timeline) will be shown in. Greek is always on.",
+      "heroBackground": "Hero Background",
+      "heroBackgroundHint": "PNG, JPG, WEBP, GIF, or SVG.",
+      "invitation": "Invitation",
+      "invitationHint": "PNG, JPG, WEBP, GIF, or SVG.",
+      "maxGuestsPerInvitation": "Max Guests per Invitation",
+      "showMaxGuests": "Show max guests",
+      "showSeating": "Show Seating",
+      "showLive": "Show Live",
+      "showReservation": "Show Reservation",
+      "isSitePublic": "Public on client site",
+      "saveSubmit": "Save changes",
+      "saving": "Saving…",
+      "errors": {
+        "required": "Title is required."
+      }
+    },
+    "coupleInfo": {
+      "saveSubmit": "Save changes",
+      "saving": "Saving…",
+      "errors": {
+        "required": "First and last name are required for both husband and wife."
+      }
+    },
+    "story": {
+      "title": "Title",
+      "subtitle": "Subtitle",
+      "paragraph": "Paragraph",
+      "saveSubmit": "Save changes",
+      "saving": "Saving…",
+      "errors": {
+        "titleRequired": "Title is required."
+      },
+      "timeline": {
+        "title": "Timeline",
+        "add": "Add item",
+        "newTitle": "New timeline item",
+        "editTitle": "Edit timeline item",
+        "empty": "No timeline items yet.",
+        "table": {
+          "title": "Title",
+          "description": "Description",
+          "date": "Date",
+          "image": "Image"
+        },
+        "form": {
+          "title": "Title",
+          "description": "Description",
+          "date": "Date",
+          "image": "Image",
+          "createSubmit": "Add item",
+          "saveSubmit": "Save changes",
+          "saving": "Saving…"
+        },
+        "edit": "Edit",
+        "delete": "Delete",
+        "deleteConfirm": "Delete?",
+        "confirmAction": "Confirm",
+        "cancel": "Cancel"
+      }
+    },
+    "events": {
+      "add": "Add event",
+      "newTitle": "New event",
+      "editTitle": "Edit event",
+      "empty": "No events yet.",
+      "viewOnMap": "View on map",
+      "table": {
+        "title": "Title",
+        "description": "Description",
+        "area": "Area",
+        "date": "Date",
+        "city": "City",
+        "address": "Address",
+        "postCode": "Post Code",
+        "country": "Country",
+        "map": "Map"
+      },
+      "form": {
+        "title": "Title",
+        "description": "Description",
+        "area": "Area",
+        "date": "Date",
+        "city": "City",
+        "address": "Address",
+        "postCode": "Post Code",
+        "country": "Country",
+        "location": "Location",
+        "mapPoint": "Google Maps Point",
+        "createSubmit": "Add event",
+        "saveSubmit": "Save changes",
+        "saving": "Saving…"
+      },
+      "map": {
+        "noKey": "Google Maps isn't configured (missing API key).",
+        "error": "Could not load Google Maps.",
+        "hint": "Click the map or drag the marker to set the exact point."
+      },
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleteConfirm": "Delete?",
+      "confirmAction": "Confirm",
+      "cancel": "Cancel",
+      "errors": {
+        "titleRequired": "Title is required."
+      }
+    },
+    "liveEvents": {
+      "empty": "No live event photos yet.",
+      "table": {
+        "image": "Image",
+        "location": "Location",
+        "uploadedBy": "Uploaded By",
+        "uploadedDate": "Uploaded Date",
+        "title": "Title",
+        "description": "Description"
+      },
+      "delete": "Delete",
+      "deleteConfirm": "Delete?",
+      "confirmAction": "Confirm",
+      "cancel": "Cancel"
+    },
+    "guests": {
+      "add": "Add guest",
+      "newTitle": "New guest",
+      "editTitle": "Edit guest",
+      "empty": "No guests yet.",
+      "confirmed": "Confirmed",
+      "denied": "Denied",
+      "table": {
+        "name": "Guest Name",
+        "communication": "Communication",
+        "expectedAttendees": "Expected Attendees",
+        "confirmedAttendees": "Confirmed Attendees",
+        "confirmationDate": "Confirmation Date"
+      },
+      "form": {
+        "name": "Guest Name",
+        "phone": "Phone",
+        "email": "Email",
+        "expectedAttendees": "Expected Attendees",
+        "confirmedAttendees": "Confirmed Attendees",
+        "confirmationDate": "Confirmation Date",
+        "createSubmit": "Add guest",
+        "saveSubmit": "Save changes",
+        "saving": "Saving…"
+      },
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleteConfirm": "Delete?",
+      "confirmAction": "Confirm",
+      "cancel": "Cancel",
+      "errors": {
+        "nameRequired": "Guest name is required.",
+        "emailTaken": "Another guest on this celebration already has this email.",
+        "phoneTaken": "Another guest on this celebration already has this phone number."
+      }
     },
     "edit": "Edit",
     "delete": "Delete",
@@ -251,6 +437,7 @@
     "form": {
       "title": "Title",
       "titlePlaceholder": "e.g. Dimitris & Maria Marriage",
+      "type": "Type",
       "professional": "Professional",
       "professionalPlaceholder": "Search professionals…",
       "husband": "Husband",
@@ -259,16 +446,16 @@
       "lastName": "Last name",
       "email": "Email",
       "mobile": "Mobile",
-      "createSubmit": "Create marriage",
+      "createSubmit": "Create celebration",
       "saveSubmit": "Save changes",
       "saving": "Saving…"
     },
     "errors": {
-      "required": "Title, professional, and both spouses' first/last name are required.",
+      "required": "Title, type, professional, and both spouses' first/last name are required.",
       "professionalRequired": "Select a professional.",
-      "createFailed": "Could not create the marriage.",
-      "updateFailed": "Could not update the marriage.",
-      "notFound": "Marriage not found.",
+      "createFailed": "Could not create the celebration.",
+      "updateFailed": "Could not update the celebration.",
+      "notFound": "Celebration not found.",
       "forbidden": "You don't have access to this page."
     }
   }

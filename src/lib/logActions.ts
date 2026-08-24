@@ -7,7 +7,7 @@ export type LogActionType = "info" | "success" | "warning" | "error";
 
 export type LogActionCategory =
   | "Security"
-  | "Weddings"
+  | "Celebrations"
   | "Professionals"
   | "Couples"
   | "Story"

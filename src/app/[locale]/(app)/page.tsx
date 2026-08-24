@@ -2,7 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 
 const SECTION_KEYS = [
-  "weddings",
+  "celebrations",
   "professionals",
   "couples",
   "story",

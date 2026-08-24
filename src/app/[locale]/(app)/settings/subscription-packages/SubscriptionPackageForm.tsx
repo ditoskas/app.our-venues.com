@@ -19,9 +19,9 @@ interface SubscriptionPackageFormProps {
     | "name"
     | "description"
     | "maxUsers"
-    | "maxBronzeMarriages"
-    | "maxSilverMarriages"
-    | "maxGoldMarriages"
+    | "maxBronzeCelebrations"
+    | "maxSilverCelebrations"
+    | "maxGoldCelebrations"
   >;
 }
 
@@ -66,33 +66,33 @@ export default function SubscriptionPackageForm({
       </Field>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-        <Field label={t("form.maxBronzeMarriages")}>
+        <Field label={t("form.maxBronzeCelebrations")}>
           <input
             type="number"
-            name="maxBronzeMarriages"
+            name="maxBronzeCelebrations"
             min={0}
             required
-            defaultValue={initialPackage?.maxBronzeMarriages}
+            defaultValue={initialPackage?.maxBronzeCelebrations}
             className="input"
           />
         </Field>
-        <Field label={t("form.maxSilverMarriages")}>
+        <Field label={t("form.maxSilverCelebrations")}>
           <input
             type="number"
-            name="maxSilverMarriages"
+            name="maxSilverCelebrations"
             min={0}
             required
-            defaultValue={initialPackage?.maxSilverMarriages}
+            defaultValue={initialPackage?.maxSilverCelebrations}
             className="input"
           />
         </Field>
-        <Field label={t("form.maxGoldMarriages")}>
+        <Field label={t("form.maxGoldCelebrations")}>
           <input
             type="number"
-            name="maxGoldMarriages"
+            name="maxGoldCelebrations"
             min={0}
             required
-            defaultValue={initialPackage?.maxGoldMarriages}
+            defaultValue={initialPackage?.maxGoldCelebrations}
             className="input"
           />
         </Field>

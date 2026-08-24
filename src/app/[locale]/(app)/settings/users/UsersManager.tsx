@@ -56,7 +56,7 @@ export default function UsersManager({ users }: { users: SerializedUser[] }) {
           </thead>
           <tbody className="divide-y divide-border">
             {users.map((u) => (
-              <tr key={u._id}>
+              <tr key={u._id} className="odd:bg-surface even:bg-accent-soft/15">
                 <td className="px-4 py-3 text-foreground">{u.displayName}</td>
                 <td className="px-4 py-3 text-muted">{u.username}</td>
                 <td className="px-4 py-3 text-foreground">

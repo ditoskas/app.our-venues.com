@@ -15,9 +15,9 @@ export default async function SubscriptionPackagesPage() {
     name: p.name,
     description: p.description,
     maxUsers: p.maxUsers,
-    maxBronzeMarriages: p.maxBronzeMarriages,
-    maxSilverMarriages: p.maxSilverMarriages,
-    maxGoldMarriages: p.maxGoldMarriages,
+    maxBronzeCelebrations: p.maxBronzeCelebrations,
+    maxSilverCelebrations: p.maxSilverCelebrations,
+    maxGoldCelebrations: p.maxGoldCelebrations,
   }));
 
   return <SubscriptionPackagesManager packages={serialized} />;
