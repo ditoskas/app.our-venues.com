@@ -12,7 +12,7 @@ public-facing site.
 There is no public-facing UI in this repo — this is admin-only. The
 public-facing frontend that visitors (and couples) actually see is a
 **separate sibling repo/project**:
-`C:\Users\toska\My Drive (ditoskas@gmail.com)\MyProjects\o-gamos-mas.com\frontend.o-gamos-mas.com` (React 19 +
+`C:\Users\toska\My Drive (ditoskas@gmail.com)\MyProjects\our-venues.com\frontend.our-venues.com` (React 19 +
 Vite, its own `CLAUDE.md`) — it consumes this backend's unauthenticated
 `/api/public/**` routes (see "Talking to the backend" in its `CLAUDE.md`,
 and **`PUBLIC-API.md`** in this repo for the actual contract — read that
@@ -1357,7 +1357,7 @@ per-feature.**
   uploads, host port `9090`. Creates the `o-gamos-mas` bucket on start and
   keeps files in the `s3_data` volume. (MinIO was the first choice, but its
   images are no longer published on Docker Hub/quay.)
-- `frontend` — the sibling `frontend.o-gamos-mas.com` repo (see "What this
+- `frontend` — the sibling `frontend.our-venues.com` repo (see "What this
   is" above), built via **its own** `Dockerfile` (a production-style
   multi-stage build: `npm run build` then serve `dist/` with nginx), host
   port `3001`. **Unlike `backend`, this is not a live-reload dev

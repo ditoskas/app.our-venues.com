@@ -1,3 +1,8 @@
+# Pinned to the project name Compose derived from this folder's old name
+# ("backend.o-gamos-mas.com"), so the existing volumes (Mongo data, S3 files,
+# node_modules) keep being used after the rename to backend.our-venues.com.
+name: backendo-gamos-mascom
+
 networks:
   o-gamos-mas-network:
     driver: bridge
@@ -93,12 +98,12 @@ services:
   # Frontend Service (Vite + React, public site) — lives in a sibling repo,
   # see CLAUDE.md "Frontend". Runs the Vite dev server (Dockerfile.dev) with
   # live HMR, same live-reload pattern as the backend service above — edits
-  # under ../frontend.o-gamos-mas.com take effect immediately, no rebuild
+  # under ../frontend.our-venues.com take effect immediately, no rebuild
   # needed. The production Dockerfile (multi-stage build → nginx) is
   # separate and only used for real deployments.
   frontend:
     build:
-      context: ../frontend.o-gamos-mas.com
+      context: ../frontend.our-venues.com
       dockerfile: Dockerfile.dev
     container_name: o-gamos-mas-frontend
     restart: unless-stopped
@@ -120,7 +125,7 @@ services:
     networks:
       - o-gamos-mas-network
     volumes:
-      - ../frontend.o-gamos-mas.com:/app
+      - ../frontend.our-venues.com:/app
       - frontend_node_modules:/app/node_modules # Named volume for node_modules
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 3001"
 
