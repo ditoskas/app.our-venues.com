@@ -26,6 +26,25 @@ services:
       timeout: 5s
       retries: 5
 
+  # S3-compatible object storage for local dev (uploaded logos/images) —
+  # Adobe S3Mock, creates the bucket on start and keeps files across restarts
+  # in the s3_data volume. Reachable from the host at http://localhost:9090.
+  # Accepts any access key/secret.
+  s3:
+    image: adobe/s3mock:4.7.0
+    container_name: o-gamos-mas-s3
+    restart: unless-stopped
+    environment:
+      COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS: o-gamos-mas
+      COM_ADOBE_TESTING_S3MOCK_STORE_ROOT: /s3data
+      COM_ADOBE_TESTING_S3MOCK_STORE_RETAIN_FILES_ON_EXIT: "true"
+    ports:
+      - "9090:9090"
+    volumes:
+      - s3_data:/s3data
+    networks:
+      - o-gamos-mas-network
+
   # Backend Service (Next.js)
   backend:
     build:
@@ -36,12 +55,22 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+      s3:
+        condition: service_started
     environment:
       NODE_ENV: development
       MONGODB_URI: mongodb://admin:password@mongodb:27017/o-gamos-mas?authSource=admin
       MONGODB_DB: o-gamos-mas
       SESSION_SECRET: dev-session-secret-change-me
-      UPLOADS_DIR: /shared
+      # Uploaded files go to S3. By default this points at the local S3Mock
+      # service above; set the S3_* vars in the root .env (see .env.example)
+      # to use a real AWS bucket instead.
+      S3_BUCKET: ${S3_BUCKET:-o-gamos-mas}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ENDPOINT: ${S3_ENDPOINT-http://s3:9090}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-local}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-local}
       PORT: 3000
       # Read from a root-level .env file (gitignored, copy from .env.example) —
       # unlike the values above, this is a real secret, so it isn't hardcoded
@@ -59,7 +88,6 @@ services:
     volumes:
       - ./src:/app
       - backend_node_modules:/app/node_modules # Named volume for node_modules
-      - C:/Shared/o-gamos-mas:/shared # Uploaded files (professional logos, etc.)
     command: sh -c "npm install && npm run dev:docker" # Run npm install first, then run the dev server (webpack + polling)
 
   # Frontend Service (Vite + React, public site) — lives in a sibling repo,
@@ -97,6 +125,7 @@ services:
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 3001"
 
 volumes:
+  s3_data:
   mongodb_data:
   mongodb_config:
   backend_node_modules:

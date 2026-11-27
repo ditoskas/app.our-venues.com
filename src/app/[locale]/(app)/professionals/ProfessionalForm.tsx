@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 import type { Professional } from "@/lib/professionals";
+import { PLAN_STORAGE_QUOTA_MB, PROFESSIONAL_PLANS } from "@/lib/plans";
 
 interface ProfessionalFormState {
   error?: string;
@@ -26,6 +27,8 @@ interface ProfessionalFormProps {
     | "city"
     | "address"
     | "postCode"
+    | "plan"
+    | "storageQuotaMB"
   >;
   logoUrl?: string;
 }
@@ -129,6 +132,38 @@ export default function ProfessionalForm({
           <input
             name="postCode"
             defaultValue={initialProfessional?.postCode}
+            className="input"
+          />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <Field label={t("form.plan")}>
+          <select
+            name="plan"
+            defaultValue={initialProfessional?.plan ?? "Free"}
+            className="input"
+          >
+            {PROFESSIONAL_PLANS.map((plan) => (
+              <option key={plan} value={plan}>
+                {t(`form.plans.${plan}`)}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field
+          label={t("form.storageQuotaMB")}
+          hint={t("form.storageQuotaHint", {
+            free: PLAN_STORAGE_QUOTA_MB.Free,
+            premium: PLAN_STORAGE_QUOTA_MB.Premium,
+          })}
+        >
+          <input
+            type="number"
+            name="storageQuotaMB"
+            min={0}
+            step="any"
+            defaultValue={initialProfessional?.storageQuotaMB}
             className="input"
           />
         </Field>

@@ -7,6 +7,7 @@ import PageHeader from "@/components/PageHeader";
 import FormDialog from "@/components/FormDialog";
 import ProfessionalForm from "./ProfessionalForm";
 import DeleteProfessionalButton from "./DeleteProfessionalButton";
+import { formatMB, type ProfessionalPlan } from "@/lib/plans";
 import { createProfessionalAction, updateProfessionalAction, deleteProfessionalAction } from "./actions";
 
 export interface SerializedProfessional {
@@ -22,6 +23,12 @@ export interface SerializedProfessional {
   address?: string;
   postCode?: string;
   logoFilename?: string;
+  plan: ProfessionalPlan;
+  // Root's per-professional override; undefined = plan default.
+  storageQuotaMB?: number;
+  quotaBytes: number;
+  // undefined if the usage lookup failed.
+  usedBytes?: number;
 }
 
 type DialogState =
@@ -87,13 +94,14 @@ export default function ProfessionalsManager({
       />
 
       <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="w-full min-w-[860px] text-sm">
           <thead className="bg-accent-soft/40 text-left text-xs tracking-wide text-muted uppercase">
             <tr>
               <th className="px-4 py-3" />
               <th className="px-4 py-3">{t("table.companyName")}</th>
               <th className="px-4 py-3">{t("table.contactPerson")}</th>
               <th className="px-4 py-3">{t("table.communication")}</th>
+              <th className="px-4 py-3">{t("table.storage")}</th>
               <th className="px-4 py-3 text-right">{tCommon("actions")}</th>
             </tr>
           </thead>
@@ -146,6 +154,9 @@ export default function ProfessionalsManager({
                   </div>
                 </td>
                 <td className="px-4 py-3">
+                  <StorageCell professional={p} />
+                </td>
+                <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-4">
                     <button
                       type="button"
@@ -189,6 +200,35 @@ export default function ProfessionalsManager({
           />
         )}
       </FormDialog>
+    </div>
+  );
+}
+
+function StorageCell({ professional: p }: { professional: SerializedProfessional }) {
+  const t = useTranslations("professionals");
+  const used = p.usedBytes;
+  const ratio = used !== undefined && p.quotaBytes > 0 ? Math.min(used / p.quotaBytes, 1) : used ? 1 : 0;
+  const barColor = ratio >= 0.9 ? "bg-red-500" : "bg-accent";
+
+  return (
+    <div className="flex min-w-32 flex-col gap-1 text-xs">
+      <span className="flex items-center gap-1.5">
+        <span
+          className={
+            p.plan === "Premium"
+              ? "rounded bg-accent-soft/60 px-1.5 py-0.5 font-medium text-accent-dark"
+              : "rounded border border-border px-1.5 py-0.5 text-muted"
+          }
+        >
+          {t(`form.plans.${p.plan}`)}
+        </span>
+        <span className="text-muted">
+          {used !== undefined ? formatMB(used) : "—"} / {formatMB(p.quotaBytes)}
+        </span>
+      </span>
+      <span className="h-1.5 w-full overflow-hidden rounded bg-accent-soft/30">
+        <span className={`block h-full ${barColor}`} style={{ width: `${ratio * 100}%` }} />
+      </span>
     </div>
   );
 }

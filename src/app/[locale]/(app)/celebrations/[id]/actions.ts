@@ -34,7 +34,11 @@ import {
   saveCelebrationHeroBackground,
   saveCelebrationInvitation,
   deleteLiveEventImage,
+  assertStorageQuota,
+  heroBackgroundUpload,
+  invitationUpload,
 } from "@/lib/uploads";
+import { storageQuotaErrorMessage } from "@/lib/storageQuotaMessage";
 import { logAction } from "@/lib/logActions";
 import { getCurrentUser, getCurrentUserId } from "@/lib/auth";
 import type { User } from "@/lib/users";
@@ -149,13 +153,28 @@ export async function updateCelebrationInfoAction(
     isSitePublic: formData.get("isSitePublic") === "on",
   };
 
+  // Both images are checked against the owning professional's storage quota
+  // together, before anything is written, so a rejected upload never leaves
+  // the form half-saved.
+  const heroBackground = getHeroBackgroundFile(formData);
+  const invitation = getInvitationFile(formData);
+  try {
+    await assertStorageQuota(before.professionalId, [
+      ...(heroBackground ? [heroBackgroundUpload(before.professionalId, id, heroBackground)] : []),
+      ...(invitation ? [invitationUpload(before.professionalId, id, invitation)] : []),
+    ]);
+  } catch (err) {
+    const message = await storageQuotaErrorMessage(err);
+    if (!message) throw err;
+    return { error: message };
+  }
+
   try {
     await updateCelebrationInfo(id, input);
   } catch {
     return { error: t("updateFailed") };
   }
 
-  const heroBackground = getHeroBackgroundFile(formData);
   let heroBackgroundFilename = before.heroBackgroundFilename;
   if (heroBackground) {
     heroBackgroundFilename = await saveCelebrationHeroBackground(
@@ -166,7 +185,6 @@ export async function updateCelebrationInfoAction(
     await setCelebrationHeroBackground(id, heroBackgroundFilename);
   }
 
-  const invitation = getInvitationFile(formData);
   let invitationFilename = before.invitationFilename;
   if (invitation) {
     invitationFilename = await saveCelebrationInvitation(before.professionalId, id, invitation);
@@ -332,9 +350,16 @@ export async function createTimelineItemAction(
   if ("error" in parsed) return { error: tStory("titleRequired") };
 
   const image = getTimelineImageFile(formData);
-  const imageFilename = image
-    ? await saveTimelineImage(celebration.professionalId, celebrationId, image)
-    : undefined;
+  let imageFilename: string | undefined;
+  if (image) {
+    try {
+      imageFilename = await saveTimelineImage(celebration.professionalId, celebrationId, image);
+    } catch (err) {
+      const message = await storageQuotaErrorMessage(err);
+      if (!message) throw err;
+      return { error: message };
+    }
+  }
 
   const newItem = await addTimelineItem(celebrationId, {
     title: parsed.title,
@@ -379,10 +404,24 @@ export async function updateTimelineItemAction(
   const image = getTimelineImageFile(formData);
   let imageFilename = existing.imageFilename;
   if (image) {
+    // New image first (its quota check credits back the one it replaces),
+    // old one deleted only once that succeeded — a rejected upload keeps the
+    // item's current image.
+    try {
+      imageFilename = await saveTimelineImage(
+        celebration.professionalId,
+        celebrationId,
+        image,
+        existing.imageFilename
+      );
+    } catch (err) {
+      const message = await storageQuotaErrorMessage(err);
+      if (!message) throw err;
+      return { error: message };
+    }
     if (existing.imageFilename) {
       await deleteTimelineImage(celebration.professionalId, celebrationId, existing.imageFilename);
     }
-    imageFilename = await saveTimelineImage(celebration.professionalId, celebrationId, image);
   }
 
   const updated: Omit<TimelineItem, "id"> = {

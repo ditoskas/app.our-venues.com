@@ -7,7 +7,10 @@ import {
   createProfessional,
   deleteProfessional,
   getProfessionalById,
+  isProfessionalPlan,
   setProfessionalLogo,
+  storageQuotaMB,
+  BYTES_PER_MB,
   updateProfessional,
   type Professional,
   type ProfessionalInput,
@@ -16,6 +19,7 @@ import {
   deleteProfessionalImages,
   saveProfessionalLogo,
 } from "@/lib/uploads";
+import { storageQuotaErrorMessage, formatMB } from "@/lib/storageQuotaMessage";
 import { logAction } from "@/lib/logActions";
 import { getCurrentUser, getCurrentUserId } from "@/lib/auth";
 import {
@@ -39,8 +43,10 @@ async function assertRoot(): Promise<string | null> {
   return null;
 }
 
+type ProfessionalFormError = "required" | "invalidPlan" | "invalidQuota";
+
 function readProfessionalForm(formData: FormData):
-  | { error: string }
+  | { error: ProfessionalFormError }
   | ProfessionalInput {
   const companyName = String(formData.get("companyName") ?? "").trim();
   const contactPerson = String(formData.get("contactPerson") ?? "").trim();
@@ -57,6 +63,17 @@ function readProfessionalForm(formData: FormData):
     return { error: "required" };
   }
 
+  const plan = String(formData.get("plan") ?? "Free");
+  if (!isProfessionalPlan(plan)) return { error: "invalidPlan" };
+
+  // Empty = use the plan's default quota (see PLAN_STORAGE_QUOTA_MB).
+  const quotaRaw = String(formData.get("storageQuotaMB") ?? "").trim();
+  let storageQuota: number | undefined;
+  if (quotaRaw) {
+    storageQuota = Number(quotaRaw);
+    if (!Number.isFinite(storageQuota) || storageQuota < 0) return { error: "invalidQuota" };
+  }
+
   return {
     companyName,
     contactPerson,
@@ -68,6 +85,8 @@ function readProfessionalForm(formData: FormData):
     ...(city ? { city } : {}),
     ...(address ? { address } : {}),
     ...(postCode ? { postCode } : {}),
+    plan,
+    ...(storageQuota !== undefined ? { storageQuotaMB: storageQuota } : {}),
   };
 }
 
@@ -166,7 +185,23 @@ export async function createProfessionalAction(
 
   const t = await getTranslations("professionals.errors");
   const parsed = readProfessionalForm(formData);
-  if ("error" in parsed) return { error: t("required") };
+  if ("error" in parsed) return { error: t(parsed.error) };
+
+  // A new professional has no files yet, so the logo alone must fit the quota
+  // — checked before creating anything so a rejected logo doesn't leave a
+  // half-created professional behind.
+  const logo = getLogoFile(formData);
+  const quotaBytes = storageQuotaMB(parsed) * BYTES_PER_MB;
+  if (logo && logo.size > quotaBytes) {
+    const tCommon = await getTranslations("common");
+    return {
+      error: tCommon("storageQuotaExceeded", {
+        used: formatMB(0),
+        quota: formatMB(quotaBytes),
+        incoming: formatMB(logo.size),
+      }),
+    };
+  }
 
   let professional;
   try {
@@ -175,7 +210,6 @@ export async function createProfessionalAction(
     return { error: t("createFailed") };
   }
 
-  const logo = getLogoFile(formData);
   if (logo) {
     const filename = await saveProfessionalLogo(professional._id.toString(), logo);
     professional.logoFilename = filename;
@@ -206,7 +240,7 @@ export async function updateProfessionalAction(
 
   const t = await getTranslations("professionals.errors");
   const parsed = readProfessionalForm(formData);
-  if ("error" in parsed) return { error: t("required") };
+  if ("error" in parsed) return { error: t(parsed.error) };
 
   const before = await getProfessionalById(id);
   if (!before) return { error: t("notFound") };
@@ -219,9 +253,19 @@ export async function updateProfessionalAction(
 
   const logo = getLogoFile(formData);
   let logoFilename = before.logoFilename;
+  let quotaError: string | null = null;
   if (logo) {
-    logoFilename = await saveProfessionalLogo(id, logo);
-    await setProfessionalLogo(id, logoFilename);
+    // Saved after updateProfessional() on purpose: the quota check then sees
+    // the plan/quota just submitted, so upgrading and uploading in one save
+    // works. On a quota error the other fields are still saved (and logged
+    // below) — only the logo is rejected.
+    try {
+      logoFilename = await saveProfessionalLogo(id, logo);
+      await setProfessionalLogo(id, logoFilename);
+    } catch (err) {
+      quotaError = await storageQuotaErrorMessage(err);
+      if (!quotaError) throw err;
+    }
   }
 
   await logAction({
@@ -236,6 +280,7 @@ export async function updateProfessionalAction(
   await syncLinkedUser(id, parsed.companyName, parsed.email);
 
   revalidatePath("/professionals");
+  if (quotaError) return { error: quotaError };
   return redirect({ href: "/professionals", locale: await getLocale() });
 }
 

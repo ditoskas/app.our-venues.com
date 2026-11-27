@@ -51,6 +51,7 @@ const TEST_PROFESSIONAL_SEED = {
   phone: "0123456789",
   mobile: "9876543210",
   email: "test@o-gamos-mas.com",
+  plan: "Free" as const,
 };
 
 const TEST_PROFESSIONAL_LOGO = path.join(
