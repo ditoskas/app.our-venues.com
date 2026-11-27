@@ -1,6 +1,14 @@
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { deleteObjects, deletePrefix, getObject, listObjects, putObject } from "./s3";
+import { BYTES_PER_MB, getProfessionalById, storageQuotaMB } from "./professionals";
+
+// Every uploaded file lives in the S3 bucket (see lib/s3.ts), keyed under
+// `professionals/<professionalId>/...` — the same layout the old UPLOADS_DIR
+// folder tree used. Only the filename is stored on the Mongo document; the
+// key prefix carries the rest. Everything under one professional's prefix
+// counts toward that professional's storage quota.
 
 const EXT_BY_MIME: Record<string, string> = {
   "image/png": ".png",
@@ -14,50 +22,210 @@ export const MIME_BY_EXT: Record<string, string> = Object.fromEntries(
   Object.entries(EXT_BY_MIME).map(([mime, ext]) => [ext, mime])
 );
 
-function uploadsRoot(): string {
-  const dir = process.env.UPLOADS_DIR;
-  if (!dir) {
-    throw new Error('Missing environment variable: "UPLOADS_DIR"');
+// ---------------------------------------------------------------------------
+// Keys
+// ---------------------------------------------------------------------------
+
+function professionalPrefix(professionalId: string): string {
+  return `professionals/${professionalId}/`;
+}
+
+function professionalImagesPrefix(professionalId: string): string {
+  return `${professionalPrefix(professionalId)}images/`;
+}
+
+function celebrationPrefix(professionalId: string, celebrationId: string): string {
+  return `${professionalPrefix(professionalId)}celebrations/${celebrationId}/`;
+}
+
+function celebrationTimelinePrefix(professionalId: string, celebrationId: string): string {
+  return `${celebrationPrefix(professionalId, celebrationId)}timeline/`;
+}
+
+// A celebration's own single-image fields (hero background, invitation).
+function celebrationImagesPrefix(professionalId: string, celebrationId: string): string {
+  return `${celebrationPrefix(professionalId, celebrationId)}images/`;
+}
+
+function celebrationLiveEventsPrefix(professionalId: string, celebrationId: string): string {
+  return `${celebrationPrefix(professionalId, celebrationId)}live-events/`;
+}
+
+function extensionFor(file: File): string {
+  return path.extname(file.name) || EXT_BY_MIME[file.type] || "";
+}
+
+// ---------------------------------------------------------------------------
+// Storage quota
+// ---------------------------------------------------------------------------
+
+export class StorageQuotaExceededError extends Error {
+  constructor(
+    public readonly usedBytes: number,
+    public readonly quotaBytes: number,
+    public readonly incomingBytes: number
+  ) {
+    super(
+      `Storage quota exceeded: ${usedBytes} used + ${incomingBytes} incoming > ${quotaBytes} allowed`
+    );
+    this.name = "StorageQuotaExceededError";
   }
-  return dir;
 }
 
-export function professionalImagesDir(professionalId: string): string {
-  return path.join(uploadsRoot(), "professionals", professionalId, "images");
+export interface StorageUsage {
+  usedBytes: number;
+  quotaBytes: number;
 }
 
-// Removes any existing "logo.*" first since the extension can change between uploads.
-export async function saveProfessionalLogo(
+// One pending upload. `replacesPrefix` is a full key prefix of whatever the
+// upload will replace (e.g. the old "logo." file), so that object's size is
+// credited back instead of counted twice.
+export interface PendingUpload {
+  size: number;
+  replacesPrefix?: string;
+}
+
+async function usedBytesFor(
   professionalId: string,
+  excludePrefixes: string[] = []
+): Promise<number> {
+  const objects = await listObjects(professionalPrefix(professionalId));
+  return objects
+    .filter((o) => !excludePrefixes.some((p) => o.Key?.startsWith(p)))
+    .reduce((sum, o) => sum + (o.Size ?? 0), 0);
+}
+
+// Usage is computed from the bucket itself (sum of object sizes under the
+// professional's prefix) rather than a counter on the Mongo document, so it
+// can never drift from what's actually stored.
+export async function getStorageUsage(professionalId: string): Promise<StorageUsage> {
+  const professional = await getProfessionalById(professionalId);
+  const quotaMB = professional ? storageQuotaMB(professional) : 0;
+  return {
+    usedBytes: await usedBytesFor(professionalId),
+    quotaBytes: quotaMB * BYTES_PER_MB,
+  };
+}
+
+// Throws StorageQuotaExceededError if the uploads wouldn't fit. Called by
+// every save* function below; actions that save several files in one submit
+// (Celebration Info: hero background + invitation) also call it up front
+// with all of them, so nothing is written if the combined size doesn't fit.
+export async function assertStorageQuota(
+  professionalId: string,
+  uploads: PendingUpload[]
+): Promise<void> {
+  const incomingBytes = uploads.reduce((sum, u) => sum + u.size, 0);
+  if (incomingBytes === 0) return;
+
+  const professional = await getProfessionalById(professionalId);
+  const quotaBytes = professional ? storageQuotaMB(professional) * BYTES_PER_MB : 0;
+  const replaced = uploads.map((u) => u.replacesPrefix).filter((p): p is string => !!p);
+  const usedBytes = await usedBytesFor(professionalId, replaced);
+
+  if (usedBytes + incomingBytes > quotaBytes) {
+    throw new StorageQuotaExceededError(usedBytes, quotaBytes, incomingBytes);
+  }
+}
+
+// Replacement prefixes for the fixed-name single-image fields, for callers
+// that pre-check several uploads together via assertStorageQuota().
+export function heroBackgroundUpload(
+  professionalId: string,
+  celebrationId: string,
+  file: File
+): PendingUpload {
+  return {
+    size: file.size,
+    replacesPrefix: `${celebrationImagesPrefix(professionalId, celebrationId)}hero-background.`,
+  };
+}
+
+export function invitationUpload(
+  professionalId: string,
+  celebrationId: string,
+  file: File
+): PendingUpload {
+  return {
+    size: file.size,
+    replacesPrefix: `${celebrationImagesPrefix(professionalId, celebrationId)}invitation.`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+async function deleteByPrefix(prefix: string): Promise<void> {
+  const existing = await listObjects(prefix);
+  await deleteObjects(existing.map((o) => o.Key!).filter(Boolean));
+}
+
+// Writes a fixed-name single file (logo, hero background, invitation): the
+// extension can change between uploads (PNG → JPG), so any existing
+// "<baseName>.*" is removed — after the new one is written, so a failed
+// upload never leaves the field without a file.
+async function saveFixedName(
+  professionalId: string,
+  dirPrefix: string,
+  baseName: string,
   file: File
 ): Promise<string> {
-  const dir = professionalImagesDir(professionalId);
-  await mkdir(dir, { recursive: true });
+  const replacesPrefix = `${dirPrefix}${baseName}.`;
+  await assertStorageQuota(professionalId, [{ size: file.size, replacesPrefix }]);
 
-  const existing = await readdir(dir).catch(() => [] as string[]);
-  await Promise.all(
-    existing
-      .filter((name) => name.startsWith("logo."))
-      .map((name) => rm(path.join(dir, name)))
-  );
+  const filename = `${baseName}${extensionFor(file)}`;
+  const key = `${dirPrefix}${filename}`;
+  const stale = (await listObjects(replacesPrefix)).map((o) => o.Key!).filter((k) => k && k !== key);
 
-  const ext = path.extname(file.name) || EXT_BY_MIME[file.type] || "";
-  const filename = `logo${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(dir, filename), buffer);
+  await putObject(key, Buffer.from(await file.arrayBuffer()), file.type || undefined);
+  await deleteObjects(stale);
   return filename;
 }
 
-// Copies a local file (e.g. a seed asset) in as a professional's logo.
+// Writes a list-item file under a random name (timeline, live events), so
+// multiple files coexist under the same prefix.
+async function saveRandomName(
+  professionalId: string,
+  dirPrefix: string,
+  file: File,
+  replacesFilename?: string
+): Promise<string> {
+  await assertStorageQuota(professionalId, [
+    {
+      size: file.size,
+      ...(replacesFilename ? { replacesPrefix: `${dirPrefix}${replacesFilename}` } : {}),
+    },
+  ]);
+
+  const filename = `${randomUUID()}${extensionFor(file)}`;
+  await putObject(`${dirPrefix}${filename}`, Buffer.from(await file.arrayBuffer()), file.type || undefined);
+  return filename;
+}
+
+// Seeder variant: copies a local file (e.g. from src/assets/seed/) into the
+// bucket. Deliberately not quota-checked — seed data is fixed and tiny.
+async function putLocalFile(key: string, sourcePath: string): Promise<void> {
+  const buffer = await readFile(sourcePath);
+  await putObject(key, buffer, MIME_BY_EXT[path.extname(sourcePath).toLowerCase()]);
+}
+
+// ---------------------------------------------------------------------------
+// Professional logo
+// ---------------------------------------------------------------------------
+
+export async function saveProfessionalLogo(professionalId: string, file: File): Promise<string> {
+  return saveFixedName(professionalId, professionalImagesPrefix(professionalId), "logo", file);
+}
+
 export async function saveProfessionalLogoFromPath(
   professionalId: string,
   sourcePath: string
 ): Promise<string> {
-  const dir = professionalImagesDir(professionalId);
-  await mkdir(dir, { recursive: true });
+  const prefix = professionalImagesPrefix(professionalId);
+  await deleteByPrefix(`${prefix}logo.`);
   const filename = `logo${path.extname(sourcePath)}`;
-  const buffer = await readFile(sourcePath);
-  await writeFile(path.join(dir, filename), buffer);
+  await putLocalFile(`${prefix}${filename}`, sourcePath);
   return filename;
 }
 
@@ -65,61 +233,45 @@ export async function readProfessionalLogo(
   professionalId: string,
   filename: string
 ): Promise<Buffer> {
-  return readFile(path.join(professionalImagesDir(professionalId), filename));
+  return getObject(`${professionalImagesPrefix(professionalId)}${filename}`);
 }
 
+// Removes everything a professional owns (logo + every celebration's files).
 export async function deleteProfessionalImages(professionalId: string): Promise<void> {
-  await rm(path.join(uploadsRoot(), "professionals", professionalId), {
-    recursive: true,
-    force: true,
-  });
+  await deletePrefix(professionalPrefix(professionalId));
 }
 
-// A celebration's timeline images live under its owning professional's own
-// folder (not a top-level "celebrations" tree) — professionals already own
-// all of a celebration's uploads by convention (see "File uploads").
-export function celebrationTimelineDir(professionalId: string, celebrationId: string): string {
-  return path.join(
-    uploadsRoot(),
-    "professionals",
-    professionalId,
-    "celebrations",
-    celebrationId,
-    "timeline"
-  );
-}
+// ---------------------------------------------------------------------------
+// Celebration timeline images
+// ---------------------------------------------------------------------------
 
-// Timeline items are a list (unlike a professional's single "logo.*"), so
-// each image gets a random filename rather than a fixed one — nothing to
-// clean up before writing, multiple images coexist in the same directory.
+// `replacesFilename`: the item's current image when replacing it, so its size
+// is credited back in the quota check. The caller deletes the old file only
+// after this succeeds.
 export async function saveTimelineImage(
   professionalId: string,
   celebrationId: string,
-  file: File
+  file: File,
+  replacesFilename?: string
 ): Promise<string> {
-  const dir = celebrationTimelineDir(professionalId, celebrationId);
-  await mkdir(dir, { recursive: true });
-
-  const ext = path.extname(file.name) || EXT_BY_MIME[file.type] || "";
-  const filename = `${randomUUID()}${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(dir, filename), buffer);
-  return filename;
+  return saveRandomName(
+    professionalId,
+    celebrationTimelinePrefix(professionalId, celebrationId),
+    file,
+    replacesFilename
+  );
 }
 
-// Copies a local file (e.g. a seed asset) in as a timeline item's image —
-// the seeder's variant of saveTimelineImage, same random-filename reasoning.
 export async function saveTimelineImageFromPath(
   professionalId: string,
   celebrationId: string,
   sourcePath: string
 ): Promise<string> {
-  const dir = celebrationTimelineDir(professionalId, celebrationId);
-  await mkdir(dir, { recursive: true });
-
   const filename = `${randomUUID()}${path.extname(sourcePath)}`;
-  const buffer = await readFile(sourcePath);
-  await writeFile(path.join(dir, filename), buffer);
+  await putLocalFile(
+    `${celebrationTimelinePrefix(professionalId, celebrationId)}${filename}`,
+    sourcePath
+  );
   return filename;
 }
 
@@ -128,7 +280,7 @@ export async function readTimelineImage(
   celebrationId: string,
   filename: string
 ): Promise<Buffer> {
-  return readFile(path.join(celebrationTimelineDir(professionalId, celebrationId), filename));
+  return getObject(`${celebrationTimelinePrefix(professionalId, celebrationId)}${filename}`);
 }
 
 export async function deleteTimelineImage(
@@ -136,72 +288,37 @@ export async function deleteTimelineImage(
   celebrationId: string,
   filename: string
 ): Promise<void> {
-  await rm(path.join(celebrationTimelineDir(professionalId, celebrationId), filename), {
-    force: true,
-  });
+  await deleteObjects([`${celebrationTimelinePrefix(professionalId, celebrationId)}${filename}`]);
 }
 
-// A celebration's own single-image fields (currently: hero background)
-// live in their own "images" folder, a sibling of "timeline" under the
-// same professional-owned celebration directory.
-export function celebrationImagesDir(professionalId: string, celebrationId: string): string {
-  return path.join(
-    uploadsRoot(),
-    "professionals",
-    professionalId,
-    "celebrations",
-    celebrationId,
-    "images"
-  );
-}
+// ---------------------------------------------------------------------------
+// Celebration single images (hero background, invitation)
+// ---------------------------------------------------------------------------
 
-// Fixed filename, existing "hero-background.*" removed first — same
-// single-file-replaces-itself shape as saveProfessionalLogo, for the same
-// reason (the extension can change between uploads).
 export async function saveCelebrationHeroBackground(
   professionalId: string,
   celebrationId: string,
   file: File
 ): Promise<string> {
-  const dir = celebrationImagesDir(professionalId, celebrationId);
-  await mkdir(dir, { recursive: true });
-
-  const existing = await readdir(dir).catch(() => [] as string[]);
-  await Promise.all(
-    existing
-      .filter((name) => name.startsWith("hero-background."))
-      .map((name) => rm(path.join(dir, name)))
+  return saveFixedName(
+    professionalId,
+    celebrationImagesPrefix(professionalId, celebrationId),
+    "hero-background",
+    file
   );
-
-  const ext = path.extname(file.name) || EXT_BY_MIME[file.type] || "";
-  const filename = `hero-background${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(dir, filename), buffer);
-  return filename;
 }
 
-// Same fixed-filename-replaces-itself shape as saveCelebrationHeroBackground
-// above, sharing the same "images" folder — just a different fixed name.
 export async function saveCelebrationInvitation(
   professionalId: string,
   celebrationId: string,
   file: File
 ): Promise<string> {
-  const dir = celebrationImagesDir(professionalId, celebrationId);
-  await mkdir(dir, { recursive: true });
-
-  const existing = await readdir(dir).catch(() => [] as string[]);
-  await Promise.all(
-    existing
-      .filter((name) => name.startsWith("invitation."))
-      .map((name) => rm(path.join(dir, name)))
+  return saveFixedName(
+    professionalId,
+    celebrationImagesPrefix(professionalId, celebrationId),
+    "invitation",
+    file
   );
-
-  const ext = path.extname(file.name) || EXT_BY_MIME[file.type] || "";
-  const filename = `invitation${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(dir, filename), buffer);
-  return filename;
 }
 
 export async function readCelebrationImage(
@@ -209,51 +326,35 @@ export async function readCelebrationImage(
   celebrationId: string,
   filename: string
 ): Promise<Buffer> {
-  return readFile(path.join(celebrationImagesDir(professionalId, celebrationId), filename));
+  return getObject(`${celebrationImagesPrefix(professionalId, celebrationId)}${filename}`);
 }
 
-// A celebration's Live Events photos — a list like timeline images (random
-// filenames, multiple coexist), but its own sibling folder under the same
-// per-celebration directory rather than sharing "timeline" or "images".
-export function celebrationLiveEventsDir(professionalId: string, celebrationId: string): string {
-  return path.join(
-    uploadsRoot(),
-    "professionals",
-    professionalId,
-    "celebrations",
-    celebrationId,
-    "live-events"
-  );
-}
+// ---------------------------------------------------------------------------
+// Celebration live-event photos
+// ---------------------------------------------------------------------------
 
 export async function saveLiveEventImage(
   professionalId: string,
   celebrationId: string,
   file: File
 ): Promise<string> {
-  const dir = celebrationLiveEventsDir(professionalId, celebrationId);
-  await mkdir(dir, { recursive: true });
-
-  const ext = path.extname(file.name) || EXT_BY_MIME[file.type] || "";
-  const filename = `${randomUUID()}${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(dir, filename), buffer);
-  return filename;
+  return saveRandomName(
+    professionalId,
+    celebrationLiveEventsPrefix(professionalId, celebrationId),
+    file
+  );
 }
 
-// Copies a local file (e.g. a seed asset) in as a live event's image — the
-// seeder's variant of saveLiveEventImage, same random-filename reasoning.
 export async function saveLiveEventImageFromPath(
   professionalId: string,
   celebrationId: string,
   sourcePath: string
 ): Promise<string> {
-  const dir = celebrationLiveEventsDir(professionalId, celebrationId);
-  await mkdir(dir, { recursive: true });
-
   const filename = `${randomUUID()}${path.extname(sourcePath)}`;
-  const buffer = await readFile(sourcePath);
-  await writeFile(path.join(dir, filename), buffer);
+  await putLocalFile(
+    `${celebrationLiveEventsPrefix(professionalId, celebrationId)}${filename}`,
+    sourcePath
+  );
   return filename;
 }
 
@@ -262,7 +363,7 @@ export async function readLiveEventImage(
   celebrationId: string,
   filename: string
 ): Promise<Buffer> {
-  return readFile(path.join(celebrationLiveEventsDir(professionalId, celebrationId), filename));
+  return getObject(`${celebrationLiveEventsPrefix(professionalId, celebrationId)}${filename}`);
 }
 
 export async function deleteLiveEventImage(
@@ -270,19 +371,14 @@ export async function deleteLiveEventImage(
   celebrationId: string,
   filename: string
 ): Promise<void> {
-  await rm(path.join(celebrationLiveEventsDir(professionalId, celebrationId), filename), {
-    force: true,
-  });
+  await deleteObjects([`${celebrationLiveEventsPrefix(professionalId, celebrationId)}${filename}`]);
 }
 
-// Removes every timeline image for a celebration in one go — call this when
-// the celebration itself is deleted (mirrors deleteProfessionalImages above).
+// Removes every file a celebration owns in one go — call this when the
+// celebration itself is deleted.
 export async function deleteCelebrationUploads(
   professionalId: string,
   celebrationId: string
 ): Promise<void> {
-  await rm(
-    path.join(uploadsRoot(), "professionals", professionalId, "celebrations", celebrationId),
-    { recursive: true, force: true }
-  );
+  await deletePrefix(celebrationPrefix(professionalId, celebrationId));
 }

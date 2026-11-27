@@ -12,7 +12,7 @@ public-facing site.
 There is no public-facing UI in this repo — this is admin-only. The
 public-facing frontend that visitors (and couples) actually see is a
 **separate sibling repo/project**:
-`C:\ThinkPositive\o-gamos-mas.com\frontend.o-gamos-mas.com` (React 19 +
+`C:\Users\toska\My Drive (ditoskas@gmail.com)\MyProjects\o-gamos-mas.com\frontend.o-gamos-mas.com` (React 19 +
 Vite, its own `CLAUDE.md`) — it consumes this backend's unauthenticated
 `/api/public/**` routes (see "Talking to the backend" in its `CLAUDE.md`,
 and **`PUBLIC-API.md`** in this repo for the actual contract — read that
@@ -243,8 +243,16 @@ src/
                                (see "Celebrations")
     subscriptionPackages.ts    SubscriptionPackage type + CRUD (see
                                "Subscription Packages")
-    uploads.ts                 Filesystem helpers for uploaded files under
-                               UPLOADS_DIR — see "File uploads"
+    uploads.ts                 Save/read/delete helpers for uploaded files
+                               (S3) + per-professional storage quota — see
+                               "File uploads"
+    s3.ts                       Lazy S3Client singleton + put/get/list/delete
+                               primitives used only by uploads.ts
+    plans.ts                    Client-safe (no DB import) Free/Premium plan
+                               constants, storageQuotaMB(), formatMB()
+    storageQuotaMessage.ts      storageQuotaErrorMessage() — turns a
+                               StorageQuotaExceededError into the translated
+                               common.storageQuotaExceeded text for actions
     googleMaps.ts               "use client" — loadGoogleMaps(apiKey), the
                                Maps JS API script-tag loader used by
                                GoogleMapPicker.tsx (see "Events")
@@ -261,6 +269,9 @@ src/
                              (Next 16 renamed "middleware" to "proxy")
   instrumentation.ts        register() — runs runSeeders() once at server boot
   global.d.ts               next-intl typed-messages augmentation
+  scripts/
+    migrate-uploads-to-s3.mjs  One-off: copies an old on-disk UPLOADS_DIR tree
+                               into the bucket under the same keys
   public/
   package.json, tsconfig.json, next.config.ts (wrapped with
   createNextIntlPlugin), eslint.config.mjs, postcss.config.mjs, .gitignore,
@@ -482,7 +493,10 @@ than hardcoding hex values.
   `companyName`, `contactPerson`, `phone`, `mobile`, `email` (all
   required), `website`, `country`, `city`, `address`, `postCode`
   (optional), `logoFilename` (set once a logo is uploaded — see "File
-  uploads"), `createdAt`.
+  uploads"), `plan` (`"Free" | "Premium"`; missing on older documents →
+  treated as Free via `professionalPlan()`), `storageQuotaMB` (optional
+  Root override of the plan's default quota — see "Storage quota" under
+  "File uploads"), `createdAt`.
 - **`/professionals` is Root-only** — the first page in this app with
   real role gating (everything else so far only checks "logged in or
   not," per the TODO under "Application shape"). Enforced **twice**:
@@ -929,7 +943,7 @@ it or just start real from day one.
   - **Each timeline item's image is a real uploaded file, not embedded in
     Mongo** — same "filesystem, not the DB" approach as professional
     logos (see "File uploads" below), but nested one level deeper:
-    `<UPLOADS_DIR>/professionals/<professionalId>/celebrations/<celebrationId>/timeline/<randomId><ext>`.
+    `professionals/<professionalId>/celebrations/<celebrationId>/timeline/<randomId><ext>` (an S3 key).
     Unlike a professional's single fixed `logo.<ext>` filename, each
     timeline image gets a random filename (`saveTimelineImage()` in
     `lib/uploads.ts`, via `randomUUID()`) since a celebration can have
@@ -942,13 +956,14 @@ it or just start real from day one.
     check (404, not 401/403, if the celebration isn't theirs) that the
     professionals logo route doesn't need, because Celebrations — unlike
     Professionals — are per-row scoped by role (see above).
-  - Replacing a timeline item's image deletes the old file first
-    (`updateTimelineItemAction()` calls `deleteTimelineImage()` before
-    `saveTimelineImage()`), and **deleting the whole celebration deletes
+  - Replacing a timeline item's image saves the new file first and
+    deletes the old one only after that succeeds (`updateTimelineItemAction()`
+    — so a quota rejection keeps the current image; see "File uploads"
+    → "Storage quota"), and **deleting the whole celebration deletes
     its entire upload tree in one shot** —
     `deleteCelebrationAction()` (in the list's `celebrations/actions.ts`)
-    calls `deleteCelebrationUploads()`, which `rm -rf`s the celebration's
-    whole `.../celebrations/<celebrationId>/` directory rather than
+    calls `deleteCelebrationUploads()`, which deletes every object under the
+    celebration's `.../celebrations/<celebrationId>/` prefix rather than
     tracking down each item's image individually. This closes the gap
     that Professionals still has open (see "Delete does not currently
     delete the linked user" above) — don't reintroduce an orphaned-files
@@ -1110,54 +1125,73 @@ it or just start real from day one.
 
 ## File uploads
 
-- Uploaded files (currently: professional logos and celebration timeline
-  images) are **not** stored in Mongo and **not** under `public/`. They
-  live on disk under `<UPLOADS_DIR>/professionals/<professionalId>/...`,
-  path-joined by `src/lib/uploads.ts`. Only the filename (e.g.
-  `"logo.png"`) is stored on the Mongo document; the directory structure
-  carries the rest. Professional logos: `.../images/`. Celebration
-  timeline images: `.../celebrations/<celebrationId>/timeline/` — nested
-  under the *owning professional's* folder, not a top-level tree, since a
-  celebration always belongs to one professional (see "Celebrations" →
-  "Story tab" above).
-- `UPLOADS_DIR` is a **required** env var (same fail-fast pattern as
-  `MONGODB_URI` — see `.env.local.example`). In Docker it's `/shared`,
-  bind-mounted from `C:/Shared/o-gamos-mas` on the host (see "Docker"
-  below); for local (non-Docker) dev, point it at any writable folder.
-- `saveProfessionalLogo(id, file)` always writes the file as `logo<ext>`
-  and **deletes any existing `logo.*` first** — necessary because the
-  extension can change between uploads (a PNG replaced with a JPG), so a
-  naive overwrite-by-same-name would leave the old file behind.
-  `saveProfessionalLogoFromPath(id, sourcePath)` is the seeder's variant,
-  copying a local file (e.g. from `src/assets/seed/`) instead of reading
-  a browser-uploaded `File`.
-- `saveTimelineImage(professionalId, celebrationId, file)` writes each
-  image under a **random filename** (`randomUUID()` + extension) instead
-  of a fixed one like `saveProfessionalLogo` — a timeline is a list, so
-  multiple images must coexist in the same directory rather than
-  replacing each other. `deleteCelebrationUploads(professionalId,
-  celebrationId)` removes a celebration's entire upload tree in one
-  `rm -rf`-style call (used on celebration delete — see "Celebrations" →
-  "Story tab" above).
-- `saveCelebrationHeroBackground(professionalId, celebrationId, file)` and
-  `saveCelebrationInvitation(professionalId, celebrationId, file)` are two
-  single-image fields like `saveProfessionalLogo` (fixed
-  `hero-background.<ext>`/`invitation.<ext>` filename respectively, old one
-  deleted first — each only cleans up its own prefix, so the two coexist),
-  both living under the same `celebrationImagesDir()` — a sibling of
-  `celebrationTimelineDir()` under the same per-celebration folder, not
-  under the professional's own `images/` — since they belong to the
-  celebration, not the professional. Already covered by
-  `deleteCelebrationUploads()` above without any extra code, since both are
-  nested under the same directory that call already `rm -rf`s.
-- Logos are served (not read directly by the browser) via
-  `GET /api/professionals/[id]/logo` (`src/app/api/professionals/[id]/logo/route.ts`).
-  This route sits outside `[locale]`, so `proxy.ts` doesn't gate it (its
-  matcher excludes `/api`) — the route does its own
-  `getCurrentUserId()` check and returns 401 if unauthenticated, 404 if
-  the professional has no logo or the file is missing on disk. Timeline
-  images and the celebration hero background follow the identical
-  outside-`proxy.ts` pattern via
+- Uploaded files (professional logos, celebration timeline/hero-background/
+  invitation/live-event images) are **not** stored in Mongo and **not**
+  under `public/` — they live in an **S3 bucket** (`src/lib/s3.ts`), keyed
+  under `professionals/<professionalId>/...`. Only the filename (e.g.
+  `"logo.png"`) is stored on the Mongo document; the key prefix carries the
+  rest. Layout: logos `professionals/<pid>/images/`; per celebration
+  `professionals/<pid>/celebrations/<cid>/{timeline,images,live-events}/`
+  — always nested under the *owning professional's* prefix, which is what
+  makes per-professional quota accounting a single prefix listing.
+  (This used to be a local `UPLOADS_DIR` folder with the identical tree;
+  `scripts/migrate-uploads-to-s3.mjs <dir>` copies such a folder into the
+  bucket unchanged.)
+- **Env vars** (see `.env.local.example`): `S3_BUCKET`, `S3_REGION`
+  (required — same lazy fail-fast as `MONGODB_URI`: the client is created
+  on first use, never at import time, so `next build` works without them);
+  `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` (optional — otherwise the SDK's
+  default credential chain); `S3_ENDPOINT` + `S3_FORCE_PATH_STYLE=true`
+  only for an S3-compatible server (the docker-compose `s3` service).
+- **Browsers never talk to S3 directly** — files are still streamed through
+  the existing API routes (below), which do the auth/ownership checks. So
+  the bucket can (and should) stay fully private, and `PUBLIC-API.md`
+  URLs didn't change.
+- `lib/uploads.ts` keeps one function per field, with the same signatures
+  as the old filesystem version: `saveProfessionalLogo`,
+  `saveCelebrationHeroBackground`, `saveCelebrationInvitation` (fixed
+  `logo.<ext>`/`hero-background.<ext>`/`invitation.<ext>` names — any
+  other-extension leftover with the same base name is deleted **after**
+  the new object is written), `saveTimelineImage`/`saveLiveEventImage`
+  (random `randomUUID()` names, since lists coexist), `read*` (return a
+  `Buffer`; a missing key throws, which routes map to 404), `delete*`, and
+  `deleteCelebrationUploads()`/`deleteProfessionalImages()` (delete a whole
+  prefix). The `*FromPath` variants are the seeder's: they copy a local
+  file from `src/assets/seed/` and are **not** quota-checked.
+- **Storage quota** — every browser upload counts toward its owning
+  professional's quota:
+  - Quota = `storageQuotaMB` override if set, else the plan default
+    `PLAN_STORAGE_QUOTA_MB` (`lib/plans.ts`): **Free 10 MB, Premium
+    100 MB**. Root sets both plan and override in the Professionals
+    create/edit dialog (empty override = plan default); it's logged with
+    the rest of the professional's fields. Professionals can't change it.
+  - Usage is **computed from the bucket** (sum of object sizes under
+    `professionals/<pid>/`, `getStorageUsage()`), not a counter on the
+    document, so it can't drift. The Professionals list shows a "Storage"
+    column (plan badge, used / quota, bar that turns red at 90%+).
+  - Every non-seed `save*` calls `assertStorageQuota()` first and throws
+    `StorageQuotaExceededError` if `used + incoming > quota`. A file being
+    replaced is credited back (`PendingUpload.replacesPrefix`), so swapping
+    an image near the limit works. Actions catch it with
+    `storageQuotaErrorMessage()` and return the translated
+    `common.storageQuotaExceeded` error to the form.
+  - Ordering rules that keep a rejected upload from losing data:
+    Celebration Info pre-checks hero + invitation **together** before
+    saving anything; timeline replace saves the new image (passing
+    `replacesFilename`) and only then deletes the old one; creating a
+    professional checks the logo against the new quota before inserting.
+    Updating a professional saves the fields first (so an upgrade + upload
+    in one submit works) and on a quota rejection still logs/syncs, then
+    returns the error instead of redirecting.
+  - No locking: two concurrent uploads can both pass the check. Fine at
+    this scale; revisit if it ever matters.
+- Logos are served via `GET /api/professionals/[id]/logo`
+  (`src/app/api/professionals/[id]/logo/route.ts`). This route sits
+  outside `[locale]`, so `proxy.ts` doesn't gate it (its matcher excludes
+  `/api`) — the route does its own `getCurrentUserId()` check and returns
+  401 if unauthenticated, 404 if the professional has no logo or the
+  object is missing. Timeline images, hero background and invitation
+  follow the identical outside-`proxy.ts` pattern via
   `GET /api/celebrations/[id]/timeline/[itemId]/image`,
   `GET /api/celebrations/[id]/hero-background`, and
   `GET /api/celebrations/[id]/invitation` — see "Celebrations" →
@@ -1165,10 +1199,8 @@ it or just start real from day one.
   on top. All three also have a **public**, unauthenticated counterpart
   under `/api/public/celebration/[guid]/...` — see `PUBLIC-API.md`.
 - `src/assets/seed/` holds source assets read only by `lib/seed.ts` at
-  seed time (resolved via `path.join(process.cwd(), "assets", ...)` —
-  `process.cwd()` is the project root for `next dev`/`build`/`start`).
-  It is **not** a runtime uploads location and isn't served to the
-  browser — don't confuse it with `UPLOADS_DIR`.
+  seed time (resolved via `path.join(process.cwd(), "assets", ...)`). It
+  is **not** a runtime uploads location and isn't served to the browser.
 
 ## Authentication
 
@@ -1319,8 +1351,12 @@ per-feature.**
   watcher on Windows/Mac — webpack + `WATCHPACK_POLLING=true` polls
   instead. Use plain `npm run dev` (no Docker) unless you specifically
   need the containerized Mongo.
-  Also mounts `C:/Shared/o-gamos-mas:/shared` (host:container) for
-  uploaded files, with `UPLOADS_DIR: /shared` — see "File uploads".
+  Its `S3_*` env defaults point at the `s3` service below; override them
+  from the root `.env` to use a real AWS bucket — see "File uploads".
+- `s3` — Adobe S3Mock (`adobe/s3mock`), the local S3-compatible store for
+  uploads, host port `9090`. Creates the `o-gamos-mas` bucket on start and
+  keeps files in the `s3_data` volume. (MinIO was the first choice, but its
+  images are no longer published on Docker Hub/quay.)
 - `frontend` — the sibling `frontend.o-gamos-mas.com` repo (see "What this
   is" above), built via **its own** `Dockerfile` (a production-style
   multi-stage build: `npm run build` then serve `dist/` with nginx), host
@@ -1333,7 +1369,7 @@ per-feature.**
   built JS runs in the visitor's browser on the host, not inside the
   Docker network, so it reaches the backend via its host-mapped port.
 - `docker compose up -d --build` to start; `MONGODB_URI`/`MONGODB_DB`/
-  `SESSION_SECRET`/`UPLOADS_DIR` are injected via compose, so no
+  `SESSION_SECRET`/`S3_*` are injected via compose, so no
   `.env.local` is needed in this mode.
 - **If you edit `docker-compose.yml` (new env var, new volume, etc.) and
   a `backend`/`mongodb` container from *before* your edit is still
@@ -1359,21 +1395,16 @@ per-feature.**
   gitignored, pure build artifact — safe to remove), then `docker compose
   start backend`. Plain `npm run build`/`npm run lint` on the host are
   fine to run alongside a live container — they don't touch `.next/dev`.
-- **Local dev and the Docker container use *different* `UPLOADS_DIR`
-  values, even though they share the same MongoDB** — the container gets
-  `UPLOADS_DIR=/shared` (→ `C:/Shared/o-gamos-mas` on the host) from
-  `docker-compose.yml`; local (non-Docker) `npm run dev` reads whatever
-  `UPLOADS_DIR` is set to in `.env.local`, which is a separate folder.
-  Both connect to the same Mongo (`localhost:27019` from the host maps to
-  the same `mongodb` container), so a Mongo document created via one
-  environment references a file that **only exists on disk in that same
-  environment** — open the app through the other one and its image 404s,
-  even though the DB record looks correct. This isn't a bug to fix, just
-  a fact to remember when uploading/seeding files: know which environment
-  (local vs. Docker) you're writing through, and if you need a file to
-  show up in both, copy it into both `UPLOADS_DIR`s by hand (this bit us
-  once seeding celebration timeline images — the DB update alone wasn't
-  enough).
+- **Local (non-Docker) `npm run dev` can share the Docker S3 store** by
+  pointing `.env.local` at `S3_ENDPOINT=http://localhost:9090`,
+  `S3_FORCE_PATH_STYLE=true`, `S3_BUCKET=o-gamos-mas` (any keys). Both
+  environments already share Mongo, so doing this avoids the old
+  "DB record exists but the image 404s in the other environment" split
+  that the separate `UPLOADS_DIR` folders used to cause.
+- After pulling a change that adds an npm dependency, the container's
+  `npm install` handles it, but webpack's cache in the shared `src/.next`
+  can keep reporting "Module not found" — `docker compose stop backend`,
+  delete `src/.next`, `docker compose start backend`.
 
 ## Conventions
 

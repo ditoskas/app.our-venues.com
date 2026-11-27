@@ -2,7 +2,8 @@
   "brand": "O Gamos Mas",
   "common": {
     "close": "Close",
-    "actions": "Actions"
+    "actions": "Actions",
+    "storageQuotaExceeded": "Not enough storage space: {used} of {quota} used, this upload needs {incoming}. Remove some images or ask for a larger quota."
   },
   "nav": {
     "celebrations": "Celebrations",
@@ -200,7 +201,8 @@
     "table": {
       "companyName": "Company",
       "contactPerson": "Contact person",
-      "communication": "Communication"
+      "communication": "Communication",
+      "storage": "Storage"
     },
     "edit": "Edit",
     "delete": "Delete",
@@ -222,14 +224,23 @@
       "logoHint": "PNG, JPG, WEBP, GIF, or SVG.",
       "createSubmit": "Create professional",
       "saveSubmit": "Save changes",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "plan": "Plan",
+      "plans": {
+        "Free": "Free",
+        "Premium": "Premium"
+      },
+      "storageQuotaMB": "Storage quota (MB)",
+      "storageQuotaHint": "Leave empty to use the plan default ({free} MB Free / {premium} MB Premium)."
     },
     "errors": {
       "required": "Company name, contact person, phone, mobile, and email are required.",
       "createFailed": "Could not create the professional.",
       "updateFailed": "Could not update the professional.",
       "notFound": "Professional not found.",
-      "forbidden": "You don't have access to this page."
+      "forbidden": "You don't have access to this page.",
+      "invalidQuota": "Storage quota must be a non-negative number of MB.",
+      "invalidPlan": "Please select a valid plan."
     }
   },
   "celebrations": {

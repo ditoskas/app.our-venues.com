@@ -1,9 +1,27 @@
 import { Collection, ObjectId } from "mongodb";
 import { getDb } from "./mongodb";
+import type { ProfessionalPlan } from "./plans";
 
 export const PROFESSIONALS_COLLECTION = "Professionals";
 
-const OPTIONAL_FIELDS = ["website", "country", "city", "address", "postCode"] as const;
+export {
+  PROFESSIONAL_PLANS,
+  PLAN_STORAGE_QUOTA_MB,
+  BYTES_PER_MB,
+  isProfessionalPlan,
+  professionalPlan,
+  storageQuotaMB,
+  type ProfessionalPlan,
+} from "./plans";
+
+const OPTIONAL_FIELDS = [
+  "website",
+  "country",
+  "city",
+  "address",
+  "postCode",
+  "storageQuotaMB",
+] as const;
 type OptionalField = (typeof OPTIONAL_FIELDS)[number];
 
 export interface Professional {
@@ -19,6 +37,8 @@ export interface Professional {
   address?: string;
   postCode?: string;
   logoFilename?: string;
+  plan?: ProfessionalPlan;
+  storageQuotaMB?: number;
   createdAt: Date;
 }
 
@@ -33,6 +53,8 @@ export interface ProfessionalInput {
   city?: string;
   address?: string;
   postCode?: string;
+  plan: ProfessionalPlan;
+  storageQuotaMB?: number;
 }
 
 async function professionalsCollection(): Promise<Collection<Professional>> {
@@ -69,13 +91,14 @@ export async function updateProfessional(
     phone: input.phone,
     mobile: input.mobile,
     email: input.email,
+    plan: input.plan,
   };
   const unset: Partial<Record<OptionalField, "">> = {};
 
   for (const field of OPTIONAL_FIELDS) {
     const value = input[field];
-    if (value) {
-      set[field] = value;
+    if (value !== undefined && value !== "") {
+      (set as Record<string, unknown>)[field] = value;
     } else {
       unset[field] = "";
     }
