@@ -1,6 +1,6 @@
 # Pinned to the project name Compose derived from this folder's old name
 # ("backend.o-gamos-mas.com"), so the existing volumes (Mongo data, S3 files,
-# node_modules) keep being used after the rename to backend.our-venues.com.
+# node_modules) keep being used after the rename to app.our-venues.com.
 name: backendo-gamos-mascom
 
 networks:
