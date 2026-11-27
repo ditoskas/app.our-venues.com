@@ -2,7 +2,7 @@
 
 Every endpoint under `/api/public/**` is **unauthenticated by design** —
 these are the only routes in this repo meant to be called directly by the
-public-facing frontend (`frontend.o-gamos-mas.com`, see `CLAUDE.md` "What
+public-facing frontend (`frontend.our-venues.com`, see `CLAUDE.md` "What
 this is") or by anything else outside the admin session. They sit outside
 `[locale]`, so `proxy.ts` doesn't gate them (its matcher excludes `/api`),
 and unlike the authenticated `/api/professionals/[id]/logo` and
@@ -36,7 +36,7 @@ can never distinguish those cases from the outside.
 
 `next.config.ts` sets `Access-Control-Allow-Origin: *` on `/api/public/:path*`
 only (not the rest of `/api/**`) — these routes are meant to be called
-cross-origin, directly from the browser, by `frontend.o-gamos-mas.com`
+cross-origin, directly from the browser, by `frontend.our-venues.com`
 running on a different port/domain, and since there's no session to leak
 (see "Authorization model" above) a wildcard origin doesn't widen access to
 anything. The frontend's `apiClient` (`src/lib/apiClient.ts` there) doesn't
