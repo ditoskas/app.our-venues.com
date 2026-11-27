@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Inter } from "next/font/google";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { setRequestLocale } from "next-intl/server";
@@ -20,6 +20,22 @@ export const metadata: Metadata = {
   title: "O Gamos Mas | Admin",
   description:
     "Admin dashboard for O Gamos Mas — wedding and christening planning.",
+  // Brand-kit favicons, served from public/ at the site root (proxy.ts's
+  // matcher skips any path with a file extension, so these aren't
+  // locale-redirected).
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "48x48" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  manifest: "/site.webmanifest",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0B2D5B",
 };
 
 export function generateStaticParams() {

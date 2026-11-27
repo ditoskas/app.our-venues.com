@@ -202,9 +202,10 @@ src/
                                      success, no lookup/code logic yet. See
                                      PUBLIC-API.md.
     globals.css            Tailwind import + design tokens (@theme) + .input
-    favicon.ico
   components/
-    Navbar.tsx             Top nav, active-link highlighting, <UserMenu />
+    Navbar.tsx             Top nav: brand logo (assets/brand/logo-vertical.png
+                             via next/image), active-link highlighting,
+                             <UserMenu />
     UserMenu.tsx             Display-name dropdown (<details>-based, no client
                               state needed): Profile link + Logout button
     SettingsSidebar.tsx     Settings sub-nav (General / Users /
@@ -222,6 +223,8 @@ src/
                              real `professionalId`; used by Celebrations' form
                              for the Root role — see "Celebrations" below
   assets/
+    brand/                 logo-vertical.png — the navbar logo (from the
+                            our-venues brand kit), statically imported
     seed/                  Source files for seed data (a logo image,
                             timeline/ — 3 JPEGs for the seeded celebration's
                             timeline) — not served to the browser, only
@@ -272,7 +275,11 @@ src/
   scripts/
     migrate-uploads-to-s3.mjs  One-off: copies an old on-disk UPLOADS_DIR tree
                                into the bucket under the same keys
-  public/
+  public/                  Brand-kit favicons + site.webmanifest, served at the
+                            site root (proxy.ts skips paths with an extension);
+                            wired up via `metadata.icons`/`manifest` and
+                            `viewport.themeColor` in [locale]/layout.tsx — no
+                            app/favicon.ico (it would clash with public/'s)
   package.json, tsconfig.json, next.config.ts (wrapped with
   createNextIntlPlugin), eslint.config.mjs, postcss.config.mjs, .gitignore,
   .env.local.example, README.md, AGENTS.md, PUBLIC-API.md (see "What this

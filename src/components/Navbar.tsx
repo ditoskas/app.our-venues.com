@@ -1,8 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import UserMenu from "./UserMenu";
+import logo from "@/assets/brand/logo-vertical.png";
 
 const NAV_KEYS = ["celebrations", "professionals", "settings"] as const;
 
@@ -20,11 +22,8 @@ export default function Navbar({
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-surface/90 backdrop-blur">
       <div className="flex h-20 w-full items-center justify-between px-6 lg:px-10">
-        <Link
-          href="/"
-          className="font-serif text-2xl italic tracking-wide text-foreground"
-        >
-          {t("brand")}
+        <Link href="/" className="shrink-0">
+          <Image src={logo} alt={t("brand")} priority className="h-10 w-auto" />
         </Link>
 
         <div className="hidden items-center gap-8 md:flex">
