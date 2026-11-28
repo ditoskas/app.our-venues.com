@@ -11,7 +11,13 @@ import {
 } from "@/lib/users";
 import { logAction } from "@/lib/logActions";
 import { ObjectId } from "mongodb";
-import { getCurrentUserId, getRealUser, resolveSession, setActingAs } from "@/lib/auth";
+import {
+  clearSessionCookie,
+  getCurrentUserId,
+  getRealUser,
+  resolveSession,
+  setActingAs,
+} from "@/lib/auth";
 import { routing, type AppLocale } from "@/i18n/routing";
 
 export interface ProfileFormState {
@@ -139,6 +145,7 @@ export async function startActingAsAction(
 export async function stopActingAsAction(): Promise<void> {
   const session = await resolveSession();
   if (!session) {
+    await clearSessionCookie(); // stale cookie (user gone) — avoid a /login loop
     return redirect({ href: "/login", locale: routing.defaultLocale });
   }
 

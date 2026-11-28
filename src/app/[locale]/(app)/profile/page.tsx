@@ -1,7 +1,6 @@
-import { getTranslations, getLocale } from "next-intl/server";
-import { resolveSession } from "@/lib/auth";
+import { getTranslations } from "next-intl/server";
+import { redirectToLogin, resolveSession } from "@/lib/auth";
 import { listUsers } from "@/lib/users";
-import { redirect } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
 import PageHeader from "@/components/PageHeader";
 import ProfileForm from "./ProfileForm";
@@ -14,7 +13,7 @@ export default async function ProfilePage() {
   const [t, session] = await Promise.all([getTranslations("profile"), resolveSession()]);
 
   if (!session) {
-    return redirect({ href: "/login", locale: await getLocale() });
+    return redirectToLogin();
   }
   const user = session.effectiveUser;
 

@@ -1,9 +1,8 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
+import { notFound, redirect as nextRedirect } from "next/navigation";
 import { getLocale } from "next-intl/server";
 import { ObjectId } from "mongodb";
-import { redirect } from "@/i18n/navigation";
 import { getUserById, type Role, type User } from "./users";
 import {
   SESSION_COOKIE_NAME,
@@ -104,13 +103,23 @@ export async function setActingAs(targetUserId: string | null): Promise<void> {
   await writeSessionCookie(token, maxAge);
 }
 
+// Server Components (pages/layouts) only — use this instead of a plain
+// redirect to /login. It goes through /api/session/clear, which drops a
+// cookie whose user no longer exists; a plain redirect would loop forever,
+// since proxy.ts (signature-only check) sends a cookie-holder on /login
+// straight back into the app. Server Actions can call clearSessionCookie()
+// themselves instead.
+export async function redirectToLogin(): Promise<never> {
+  return nextRedirect(`/api/session/clear?locale=${encodeURIComponent(await getLocale())}`);
+}
+
 // For use in a page/layout Server Component only — notFound()/redirect() rely on
 // the render tree's boundaries, which a Server Action doesn't have. Actions should
 // check `(await getCurrentUser())?.role` themselves and return a form error instead.
 export async function requirePageRole(roles: Role[]): Promise<User> {
   const user = await getCurrentUser();
   if (!user) {
-    return redirect({ href: "/login", locale: await getLocale() });
+    return redirectToLogin();
   }
   if (!roles.includes(user.role)) {
     return notFound();

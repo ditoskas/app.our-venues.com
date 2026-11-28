@@ -1,6 +1,4 @@
-import { getLocale } from "next-intl/server";
-import { redirect } from "@/i18n/navigation";
-import { resolveSession } from "@/lib/auth";
+import { redirectToLogin, resolveSession } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
 import ActingAsBanner from "@/components/ActingAsBanner";
 import { logoutAction } from "./actions";
@@ -16,7 +14,7 @@ export default async function AppLayout({
   // The proxy already gates every route in this group — this is
   // defense-in-depth in case a page is ever reached another way.
   if (!session || !user) {
-    return redirect({ href: "/login", locale: await getLocale() });
+    return redirectToLogin();
   }
 
   return (
