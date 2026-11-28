@@ -199,9 +199,13 @@ src/
                                      above
         reservations/confirm/route.ts  GET (query params) — records a
                                      guest's RSVP by phone/email match
-        access/confirm/route.ts  GET (query params) — STUB, always returns
-                                     success, no lookup/code logic yet. See
-                                     PUBLIC-API.md.
+        access/confirm/route.ts  GET — guest sign-in: contact → one-time
+                                     code → signed guest token
+                                     (lib/guestAccess.ts). See PUBLIC-API.md.
+        celebration/[guid]/live-events/route.ts  GET — Live Events feed
+                                     (+ live-events/[itemId]/image)
+        live-events/route.ts     POST — a signed-in guest (Bearer guest
+                                     token) posts a Live Events photo
     globals.css            Tailwind import + design tokens (@theme) + .input
   components/
     Navbar.tsx             Top nav: brand logo (assets/brand/logo-vertical.png
@@ -476,7 +480,9 @@ than hardcoding hex values.
   `MONGODB_URI`, `MONGODB_DB`.
 - Collections so far: `Users` (see "Users & roles"), `Professionals` (see
   "Professionals"), `SubscriptionPackages` (see "Subscription Packages"),
-  `LogActions` (see "Action logging"). No ODM — plain typed driver calls
+  `LogActions` (see "Action logging"), `SubdomainReservations` (see
+  `docs/CELEBRATION-SUBDOMAINS.md`), `GuestAccessCodes` (one-time guest
+  sign-in codes, hashed, TTL-expired — see PUBLIC-API.md → access/confirm). No ODM — plain typed driver calls
   in `src/lib/*.ts`.
 - Pages that read live DB data (e.g. `settings/users`,
   `settings/log-actions`) export `export const dynamic = "force-dynamic";`
