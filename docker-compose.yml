@@ -71,6 +71,15 @@ services:
       # Set it in the root .env (see .env.example); if unset, a random one is
       # generated and printed once in the seed table in the backend log.
       SEED_ROOT_PASSWORD: ${SEED_ROOT_PASSWORD:-}
+      # Celebration sites (src/docs/CELEBRATION-SUBDOMAINS.md, phase 2): the
+      # backend serves the frontend SPA's index.html for permanent links and
+      # subdomains, and proxies its /site/* assets — both from the frontend
+      # dev server over the Docker network.
+      SITE_ORIGIN: http://frontend:3001
+      SITE_INDEX_URL: http://frontend:3001/site/
+      # Subdomains work locally as http://{label}.o-gamos-mas.com.localhost:3000
+      # (Chrome resolves *.localhost to 127.0.0.1, no DNS needed).
+      CELEBRATION_SITE_HOST_SUFFIX: .localhost
       # Uploaded files go to S3. By default this points at the local S3Mock
       # service above; set the S3_* vars in the root .env (see .env.example)
       # to use a real AWS bucket instead.
@@ -114,10 +123,15 @@ services:
     depends_on:
       - backend
     environment:
-      # Vite env vars are read at dev-server start, not build time here —
-      # this points at the backend's host-mapped port since the app runs in
-      # the visitor's browser, not inside the Docker network.
-      VITE_API_BASE_URL: http://localhost:3000/api
+      # Vite env vars are read at dev-server start, not build time here.
+      # Same-origin "/api": the Vite dev server proxies it to the backend
+      # (VITE_API_PROXY_TARGET), and when the backend serves the site (port
+      # 3000, permanent link or *.localhost subdomain) /api is the backend
+      # itself — so the app works on every host without CORS.
+      VITE_API_BASE_URL: /api
+      VITE_API_PROXY_TARGET: http://backend:3000
+      # Pages served through the backend connect HMR straight to this server.
+      VITE_HMR_CLIENT_PORT: "3001"
       VITE_CELEBRATION_ID: 3fe69f43-ef7c-4aef-9ba1-0e68275e0d98
       # Bind mounts on Windows/Mac don't reliably propagate native
       # file-change events into the container, so Vite's watcher (chokidar)

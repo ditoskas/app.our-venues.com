@@ -1,8 +1,7 @@
 # Celebration subdomains & permanent links
 
-Status: **Phase 1 done** (reservations + Domain tab, verified locally).
-Next: Phase 2 (serving the sites). Infrastructure (Phase 4) waits for the
-deployment concept.
+Status: **Phases 1–3 done** and verified locally (reservations, serving the
+sites, frontend). Phase 4 (infrastructure) waits for the deployment concept.
 
 ## Decisions
 
@@ -99,7 +98,7 @@ Date changes (Celebration Info) and type changes (list dialog) call
 `followCelebrationChange()` before saving; deleting a celebration releases
 its subdomain.
 
-**Phase 2 — app: serving the sites** *(this repo)*
+**Phase 2 — app: serving the sites** *(this repo)* — ✅ done
 1. `proxy.ts`: `/celebrations/{uuid}/…` without a locale, and any request whose
    host is a celebration domain's subdomain, bypass locale/auth handling and
    are rewritten to a site-entry route handler.
@@ -112,16 +111,58 @@ its subdomain.
    dev).
 4. `PUBLIC-API.md` updated.
 
-**Phase 3 — frontend** *(frontend.our-venues.com)*
+**Phase 3 — frontend** *(frontend.our-venues.com)* — ✅ done
 1. Vite `base: "/site/"` so assets load from both hosts.
 2. Router `basename` from `window.celebrationBasePath` (`/celebrations/{guid}`
    on the permanent link, `/` on subdomains).
 3. API base `/api` same-origin in production; local docker unchanged.
+
+How phases 2–3 work (as built):
+
+- `proxy.ts` → `routeCelebrationSite()` runs before locale/auth handling:
+  a celebration subdomain host or `/celebrations/{uuid}/…` is rewritten to
+  `/api/site/entry`, with what matched passed as the request headers
+  `x-celebration-site-host` / `x-celebration-site-guid` (a rewritten route
+  handler sees the *original* URL, so query params don't survive). A bare
+  celebration domain → 302 to the marketing site (nginx's landing page
+  normally answers first in production).
+- `app/api/site/entry/route.ts`: resolves the celebration (by guid, or by
+  host + active reservation + matching type) → the SPA's `index.html`
+  (fetched from `SITE_INDEX_URL`) with
+  `window.celebrationId` / `window.celebrationBasePath` injected, sent
+  `no-store` + `X-Robots-Tag: noindex`; otherwise 302 to `MARKETING_URL`.
+- Static assets: the SPA is built with Vite `base: "/site/"`. Locally,
+  `next.config.ts` rewrites `/site/*` to `SITE_ORIGIN`; the proxy matcher
+  skips `site/`. The SPA's router basename comes from
+  `window.celebrationBasePath`.
+- Pure helpers (safe in `proxy.ts`): `lib/siteDomains.ts`
+  (`parseCelebrationHost`, `matchPermanentPath`) and `lib/siteConfig.ts`
+  (env vars).
+
+Env vars (backend):
+
+| Var | Production | Local Docker |
+|---|---|---|
+| `MARKETING_URL` | `https://our-venues.com` (default) | default |
+| `CELEBRATION_SITE_HOST_SUFFIX` | empty | `.localhost` |
+| `SITE_INDEX_URL` | where the built `index.html` is reachable from the backend (e.g. `http://127.0.0.1/site/` via local nginx) | `http://frontend:3001/site/` |
+| `SITE_ORIGIN` | unset (nginx serves `/site/`) | `http://frontend:3001` |
+
+Frontend production build: `VITE_API_BASE_URL=/api` (same-origin on every
+host), output served at `/site/`.
 
 **Phase 4 — infrastructure** *(server-scripts, after the deployment concept)*
 Cloudflare DNS + wildcard records, wildcard-certificate playbook, wildcard
 nginx template (static `/site/`, `/api/` and pages → backend), landing pages
 for the bare domains, `/celebrations/` and `/site/` on `app.our-venues.com`.
 
+For Phase 4 nginx, on `app.our-venues.com` **and** the wildcard hosts:
+serve `/site/` from the frontend build; send `/api/` and every other page
+request to the backend (it decides SPA shell vs. 302). Bare domains: static
+landing page.
+
 Local testing without DNS: Chrome resolves `*.localhost`, e.g.
-`http://dimitris-and-maria-with-love.o-gamos-mas.localhost:3000`.
+`http://dimitris-and-maria-with-love.o-gamos-mas.com.localhost:3000` (only
+serves inside the reservation's period — the seeded one is in 2032; widen
+`startsAt`/`endsAt` in `SubdomainReservations` to try it), and the
+permanent link `http://localhost:3000/celebrations/{guid}`.

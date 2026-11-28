@@ -9,6 +9,13 @@ const nextConfig: NextConfig = {
   // browser blocks that without an explicit CORS allow. These routes have
   // no cookie/session auth (the guid is the only access control), so a
   // wildcard origin doesn't widen access to anything.
+  // The celebration-site SPA's assets live under /site/ (frontend's Vite
+  // `base`). In production nginx serves them before requests reach Next; for
+  // local dev (and as a fallback) proxy them to the frontend server.
+  async rewrites() {
+    const origin = process.env.SITE_ORIGIN;
+    return origin ? [{ source: "/site/:path*", destination: `${origin}/site/:path*` }] : [];
+  },
   async headers() {
     return [
       {

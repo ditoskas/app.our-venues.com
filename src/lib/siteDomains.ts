@@ -149,3 +149,45 @@ export function periodsOverlap(a: ReservationPeriod, b: ReservationPeriod): bool
 export function isPeriodActive(period: ReservationPeriod, at: Date = new Date()): boolean {
   return period.startsAt <= at && at < period.endsAt;
 }
+
+// ---------------------------------------------------------------------------
+// Request routing (used by proxy.ts — keep this pure, no DB/Node imports)
+// ---------------------------------------------------------------------------
+
+// `app.our-venues.com/celebrations/{guid}` — the permanent link. No locale
+// prefix and a UUID (admin URLs are `/{locale}/celebrations/{ObjectId}`).
+const PERMANENT_PATH_RE =
+  /^\/celebrations\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/.*)?$/i;
+
+export function matchPermanentPath(pathname: string): { guid: string; basePath: string } | null {
+  const m = PERMANENT_PATH_RE.exec(pathname);
+  if (!m) return null;
+  const guid = m[1].toLowerCase();
+  return { guid, basePath: `/celebrations/${m[1]}` };
+}
+
+export type CelebrationHost =
+  | { kind: "subdomain"; label: string; domain: string }
+  | { kind: "bare"; domain: string };
+
+// Recognizes `{label}.{domain}{suffix}` and the bare `{domain}{suffix}` for
+// the celebration domains. `suffix` is "" in production and ".localhost" in
+// local dev (Chrome resolves *.localhost to 127.0.0.1), set via the
+// CELEBRATION_SITE_HOST_SUFFIX env var. Port is ignored.
+export function parseCelebrationHost(rawHost: string | null, suffix = ""): CelebrationHost | null {
+  if (!rawHost) return null;
+  const host = rawHost.toLowerCase().replace(/:\d+$/, "").replace(/\.$/, "");
+  for (const domain of Object.values(CELEBRATION_DOMAINS)) {
+    const full = `${domain}${suffix}`;
+    if (host === full || host === `www.${full}`) return { kind: "bare", domain };
+    if (host.endsWith(`.${full}`)) {
+      const label = host.slice(0, -(full.length + 1));
+      // Single label only (no nested subdomains) and syntactically valid.
+      if (!label.includes(".") && validateLabel(label) !== "characters") {
+        return { kind: "subdomain", label, domain };
+      }
+      return null;
+    }
+  }
+  return null;
+}

@@ -1438,6 +1438,15 @@ celebration also has a never-expiring permanent link
 phased plan live in `docs/CELEBRATION-SUBDOMAINS.md` — read it before
 touching this feature, and keep it updated.**
 
+Serving: `proxy.ts` routes celebration hosts and unprefixed
+`/celebrations/{uuid}` paths (before any locale/auth logic) to
+`app/api/site/entry/route.ts`, which returns the frontend SPA's
+`index.html` with the celebration injected, or a 302 to the marketing
+site. The SPA's assets live under `/site/` (proxied to the frontend
+locally via `next.config.ts`; `site/` is excluded from the proxy matcher).
+Don't add an app route named `site`, and keep `/celebrations/{uuid}` free
+(admin celebration URLs are always locale-prefixed with an ObjectId).
+
 ## Deployment (production)
 
 Production deployment is **not** done from this repo. The Ansible
