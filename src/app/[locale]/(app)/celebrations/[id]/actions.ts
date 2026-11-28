@@ -58,7 +58,12 @@ import { storageQuotaErrorMessage } from "@/lib/storageQuotaMessage";
 import { logAction } from "@/lib/logActions";
 import { getCurrentUser, getCurrentUserId } from "@/lib/auth";
 import type { User } from "@/lib/users";
-import { readSpouse, createSpouseUserIfMissing } from "../spouses";
+import {
+  createSpouseUserIfMissing,
+  readSpouse,
+  readSpousePassword,
+  validateSpouseLogins,
+} from "../spouses";
 import { LOCALES, localizedLabel } from "./localizedText";
 import type { AppLocale } from "@/i18n/routing";
 
@@ -265,6 +270,13 @@ export async function updateCelebrationCoupleAction(
   const wife = readSpouse(formData, "wife");
   if ("error" in wife) return { error: tCouple("required") };
 
+  const logins = [
+    { spouse: husband, password: readSpousePassword(formData, "husband") },
+    { spouse: wife, password: readSpousePassword(formData, "wife") },
+  ];
+  const loginError = await validateSpouseLogins(logins);
+  if (loginError) return { error: loginError };
+
   try {
     await updateCelebrationCouple(id, { husband, wife });
   } catch {
@@ -282,8 +294,9 @@ export async function updateCelebrationCoupleAction(
     dataTo: { husband, wife },
   });
 
-  await createSpouseUserIfMissing(id, husband, actorId);
-  await createSpouseUserIfMissing(id, wife, actorId);
+  for (const login of logins) {
+    await createSpouseUserIfMissing(id, login, actorId);
+  }
 
   revalidatePath(`/celebrations/${id}/couple-info`);
   return redirect({ href: `/celebrations/${id}/couple-info`, locale: await getLocale() });

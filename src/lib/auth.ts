@@ -92,9 +92,23 @@ export async function getRealUser(): Promise<User | null> {
 
 // Re-issues the session cookie with (or without) an "act as" target, keeping
 // the original login's expiry so impersonating can't extend a session.
+//
+// "Act as" is a Root-only feature: starting it is refused here unless the
+// real (logged-in) user is Root and the target isn't, whatever the caller
+// checked — resolveSession() applies the same rule again on every request.
+// Stopping (null) is always allowed.
 export async function setActingAs(targetUserId: string | null): Promise<void> {
   const payload = await readSessionPayload();
   if (!payload) return;
+  if (targetUserId) {
+    const [realUser, target] = await Promise.all([
+      safeGetUserById(payload.sub),
+      safeGetUserById(targetUserId),
+    ]);
+    if (realUser?.role !== "Root" || !target || target.role === "Root") {
+      throw new Error("Act as is only available to the Root user");
+    }
+  }
   const token = await createSessionToken(payload.sub, {
     act: targetUserId ?? undefined,
     exp: payload.exp,

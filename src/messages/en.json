@@ -250,7 +250,11 @@
         "Premium": "Premium"
       },
       "storageQuotaMB": "Storage quota (MB)",
-      "storageQuotaHint": "Leave empty to use the plan default ({free} MB Free / {premium} MB Premium)."
+      "storageQuotaHint": "Leave empty to use the plan default ({free} MB Free / {premium} MB Premium).",
+      "loginPassword": "Login password",
+      "newLoginPassword": "New login password",
+      "loginPasswordHintCreate": "The professional signs in with the email above and this password (at least {min} characters).",
+      "loginPasswordHintEdit": "Leave blank to keep the current password (at least {min} characters)."
     },
     "errors": {
       "required": "Company name, contact person, phone, mobile, and email are required.",
@@ -259,7 +263,10 @@
       "notFound": "Professional not found.",
       "forbidden": "You don't have access to this page.",
       "invalidQuota": "Storage quota must be a non-negative number of MB.",
-      "invalidPlan": "Please select a valid plan."
+      "invalidPlan": "Please select a valid plan.",
+      "passwordRequired": "Enter a login password for the professional.",
+      "passwordTooShort": "The login password must be at least {min} characters.",
+      "emailTaken": "A login with this email already exists — use a different email."
     }
   },
   "celebrations": {
@@ -479,7 +486,9 @@
       "mobile": "Mobile",
       "createSubmit": "Create celebration",
       "saveSubmit": "Save changes",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "loginPassword": "Login password",
+      "loginPasswordHint": "Needed only to create a login for this email (at least {min} characters). Doesn't change an existing login."
     },
     "errors": {
       "required": "Title, type, professional, and both spouses' first/last name are required.",
@@ -532,6 +541,10 @@
           "reserved": "This name is reserved."
         }
       }
+    },
+    "spouseLogin": {
+      "passwordRequired": "Enter a login password for {name} — a login will be created for {email}.",
+      "passwordTooShort": "The login password for {name} must be at least {min} characters."
     }
   }
 }

@@ -18,7 +18,13 @@ import { deleteCelebrationUploads } from "@/lib/uploads";
 import { logAction } from "@/lib/logActions";
 import { getCurrentUser, getCurrentUserId } from "@/lib/auth";
 import type { User } from "@/lib/users";
-import { readSpouse, createSpouseUserIfMissing } from "./spouses";
+import {
+  createSpouseUserIfMissing,
+  readSpouse,
+  readSpousePassword,
+  validateSpouseLogins,
+  type SpouseLogin,
+} from "./spouses";
 
 const CELEBRATION_TYPES: CelebrationType[] = ["Marriage", "Christening"];
 
@@ -80,6 +86,16 @@ function readCelebrationForm(
   return { title, type: type as CelebrationType, husband, wife };
 }
 
+function spouseLogins(
+  formData: FormData,
+  parsed: Pick<CelebrationInput, "husband" | "wife">
+): SpouseLogin[] {
+  return [
+    { spouse: parsed.husband, password: readSpousePassword(formData, "husband") },
+    { spouse: parsed.wife, password: readSpousePassword(formData, "wife") },
+  ];
+}
+
 function toLoggable(celebration: Celebration) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to omit them
   const { _id, createdAt, ...rest } = celebration;
@@ -100,6 +116,10 @@ export async function createCelebrationAction(
   const professional = resolveProfessionalId(access.user, formData);
   if ("error" in professional) return { error: t(professional.error) };
 
+  const logins = spouseLogins(formData, parsed);
+  const loginError = await validateSpouseLogins(logins);
+  if (loginError) return { error: loginError };
+
   let celebration;
   try {
     celebration = await createCelebration({ ...parsed, professionalId: professional.professionalId });
@@ -117,8 +137,9 @@ export async function createCelebrationAction(
     dataTo: toLoggable(celebration),
   });
 
-  await createSpouseUserIfMissing(celebration._id.toString(), celebration.husband, actorId);
-  await createSpouseUserIfMissing(celebration._id.toString(), celebration.wife, actorId);
+  for (const login of logins) {
+    await createSpouseUserIfMissing(celebration._id.toString(), login, actorId);
+  }
 
   revalidatePath("/celebrations");
   return redirect({ href: "/celebrations", locale: await getLocale() });
@@ -141,6 +162,10 @@ export async function updateCelebrationAction(
 
   const professional = resolveProfessionalId(access.user, formData, before);
   if ("error" in professional) return { error: t(professional.error) };
+
+  const logins = spouseLogins(formData, parsed);
+  const loginError = await validateSpouseLogins(logins);
+  if (loginError) return { error: loginError };
 
   // A reserved subdomain follows the type (its domain); a clash rejects it.
   const actorId = (await getCurrentUserId()) ?? "system";
@@ -168,8 +193,9 @@ export async function updateCelebrationAction(
     dataTo: { ...parsed, professionalId: professional.professionalId },
   });
 
-  await createSpouseUserIfMissing(id, parsed.husband, actorId);
-  await createSpouseUserIfMissing(id, parsed.wife, actorId);
+  for (const login of logins) {
+    await createSpouseUserIfMissing(id, login, actorId);
+  }
 
   revalidatePath("/celebrations");
   return redirect({ href: "/celebrations", locale: await getLocale() });

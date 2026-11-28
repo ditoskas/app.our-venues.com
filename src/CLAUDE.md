@@ -546,7 +546,7 @@ keep it in sync when seed data changes.**
   → a random one is generated and shown once in the seed table (dev), or
   Root isn't created at all (production). Never commit a real password to
   `lib/seed/` or the README.
-- Every non-Root login uses `SEED_USER_PASSWORD` (= `PROFESSIONAL_USER_PASSWORD`).
+- Every seeded non-Root login uses `SEED_USER_PASSWORD` (`lib/seed/seeders/users.ts`, `"Test123456!"`) — seed/demo data only; logins created from the app always get the password typed in the form.
   `runSeeders()` prints an Email/Password/Role/Name table at the end,
   skipped when `NODE_ENV=production`.
 - `seedSpouseUser()` re-links a Couple login whose `coupleId` points at a
@@ -605,9 +605,14 @@ keep it in sync when seed data changes.**
   (and the seeder's `seedProfessionalUser()`, for the seeded Test Company):
   `role: "Professional"`, `professionalId` set to the professional's own
   id, `displayName` = company name, `username` = the professional's
-  email, password `PROFESSIONAL_USER_PASSWORD` (`src/lib/users.ts` —
-  currently `"Test123456!"`, shared by the action and the seeder so they
-  can't drift apart).
+  email, password = the **Login password typed in the professional form**
+  (required on create; on edit, "New login password" — blank keeps the
+  current one, a value resets it). Minimum length: `MIN_PASSWORD_LENGTH`
+  in `lib/passwordRules.ts` (client-safe, also used for the inputs'
+  `minLength`). Create refuses up front (`emailTaken`) when the email is
+  already a login's username, instead of creating a professional nobody
+  can sign in as. There is **no shared default password** any more — the
+  seeder has its own `SEED_USER_PASSWORD` for demo data only.
   - **Create**: inserts the linked user right after the professional.
   - **Update**: `syncLinkedUser()` looks the user up by `professionalId`
     (`getUserByProfessionalId()`) and updates its `displayName`/
@@ -791,9 +796,16 @@ section.
   and if none exists, creates a `role: "Couple"` user with `coupleId` set
   to the celebration's own `_id` (husband and wife of the same
   celebration share one `coupleId`), `displayName` = full name,
-  `username` = the spouse's email, password `PROFESSIONAL_USER_PASSWORD`
-  (`src/lib/users.ts` — the same shared `"Test123456!"` constant used for
-  Professional logins). This is **best-effort**, same as the
+  `username` = the spouse's email, password = that spouse's **Login
+  password** field (`${prefix}Password`, read by `readSpousePassword()` in
+  `celebrations/spouses.ts`, never stored on the celebration).
+  `validateSpouseLogins()` runs **before** saving (create/edit dialog and
+  Couple Info tab): a spouse whose save would create a new login (email
+  set, no user with that username yet) must have a password of at least
+  `MIN_PASSWORD_LENGTH`, otherwise the save is rejected with a message
+  naming the spouse. A typed password is ignored when the login already
+  exists — it never changes an existing account (the email could belong
+  to anyone). Creating the login itself is **best-effort**, same as the
   professional-linked-user flow: failures are logged as a
   `Security`/`warning` action and never block the celebration save.
 - List table (`CelebrationsManager.tsx`) shows a "Type" column (translated
@@ -813,8 +825,8 @@ section.
   invitation images. It covers
   both fixtures in one record: husband/wife have emails
   (`dimitris-husband@o-gamos-mas.com` / `maria-wife@o-gamos-mas.com`), so
-  it gets the two Couple-role logins (same shared
-  `PROFESSIONAL_USER_PASSWORD`) for testing the couple-login flow, *and*
+  it gets the two Couple-role logins (seed password `SEED_USER_PASSWORD`)
+  for testing the couple-login flow, *and*
   its `info` block is fully populated (`celebrationDate`, `headline`,
   `quote`, `countdownParagraph` — the last three seeded with real `el`/
   `en`/`ru` translations, not just `en`, so the language tabs have

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { MIN_PASSWORD_LENGTH } from "@/lib/passwordRules";
 import { useTranslations } from "next-intl";
 import { updateCelebrationCoupleAction } from "./actions";
 import type { Spouse } from "@/lib/celebrations";
@@ -57,6 +58,16 @@ export default function CoupleInfoForm({
               className="input"
             />
           </Field>
+          <Field label={t("loginPassword")}>
+            <input
+              type="password"
+              name="husbandPassword"
+              minLength={MIN_PASSWORD_LENGTH}
+              autoComplete="new-password"
+              className="input"
+            />
+            <span className="text-xs text-muted">{t("loginPasswordHint", { min: MIN_PASSWORD_LENGTH })}</span>
+          </Field>
         </div>
       </fieldset>
 
@@ -95,6 +106,16 @@ export default function CoupleInfoForm({
               defaultValue={wife.mobile}
               className="input"
             />
+          </Field>
+          <Field label={t("loginPassword")}>
+            <input
+              type="password"
+              name="wifePassword"
+              minLength={MIN_PASSWORD_LENGTH}
+              autoComplete="new-password"
+              className="input"
+            />
+            <span className="text-xs text-muted">{t("loginPasswordHint", { min: MIN_PASSWORD_LENGTH })}</span>
           </Field>
         </div>
       </fieldset>
