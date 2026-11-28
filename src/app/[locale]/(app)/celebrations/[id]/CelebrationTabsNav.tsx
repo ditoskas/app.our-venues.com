@@ -10,6 +10,7 @@ const TABS = [
   { key: "events", segment: "events" },
   { key: "liveEvents", segment: "live-events" },
   { key: "guests", segment: "guests" },
+  { key: "domain", segment: "domain" },
 ] as const;
 
 export default function CelebrationTabsNav({ celebrationId }: { celebrationId: string }) {

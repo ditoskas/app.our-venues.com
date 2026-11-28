@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { ObjectId } from "mongodb";
 import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 import {
@@ -11,11 +12,36 @@ import {
   type Role,
 } from "@/lib/users";
 import { logAction } from "@/lib/logActions";
-import { getCurrentUserId } from "@/lib/auth";
+import { getCurrentUser, getCurrentUserId } from "@/lib/auth";
+import { canManageUser, listOwnCelebrationOptions } from "@/lib/userScope";
+import type { User } from "@/lib/users";
 import { routing, type AppLocale } from "@/i18n/routing";
 
 export interface UserFormState {
   error?: string;
+}
+
+// Shared by Root (/settings/users — every user) and Professional (/users —
+// only the Couple users of their own celebrations). Every action re-derives
+// the actor and scope server-side; nothing about scope comes from the client.
+interface Actor {
+  user: User;
+  ownCelebrationIds: Set<string>;
+  listPath: "/settings/users" | "/users";
+}
+
+async function getActor(): Promise<Actor | null> {
+  const user = await getCurrentUser();
+  if (!user || (user.role !== "Root" && user.role !== "Professional")) return null;
+  const ownCelebrationIds =
+    user.role === "Professional"
+      ? new Set((await listOwnCelebrationOptions(user.professionalId)).map((c) => c.id))
+      : new Set<string>();
+  return {
+    user,
+    ownCelebrationIds,
+    listPath: user.role === "Root" ? "/settings/users" : "/users",
+  };
 }
 
 function parseRole(value: FormDataEntryValue | null): Role | null {
@@ -31,13 +57,14 @@ function parseLocale(value: FormDataEntryValue | null): AppLocale {
     : routing.defaultLocale;
 }
 
-async function readUserForm(formData: FormData) {
+async function readUserForm(formData: FormData, actor: Actor) {
   const t = await getTranslations("settings.users.errors");
 
   const displayName = String(formData.get("displayName") ?? "").trim();
   const username = String(formData.get("username") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const role = parseRole(formData.get("role"));
+  // A Professional can only ever produce Couple users.
+  const role = actor.user.role === "Root" ? parseRole(formData.get("role")) : "Couple";
   const defaultLocale = parseLocale(formData.get("defaultLocale"));
   const professionalId =
     String(formData.get("professionalId") ?? "").trim() || undefined;
@@ -51,6 +78,9 @@ async function readUserForm(formData: FormData) {
   }
   if (role === "Couple" && !coupleId) {
     return { error: t("coupleIdRequired") } as const;
+  }
+  if (actor.user.role !== "Root" && (!coupleId || !actor.ownCelebrationIds.has(coupleId))) {
+    return { error: t("forbidden") } as const;
   }
 
   return {
@@ -69,7 +99,9 @@ export async function createUserAction(
   formData: FormData
 ): Promise<UserFormState> {
   const t = await getTranslations("settings.users.errors");
-  const parsed = await readUserForm(formData);
+  const actor = await getActor();
+  if (!actor) return { error: t("forbidden") };
+  const parsed = await readUserForm(formData, actor);
   if ("error" in parsed) return { error: parsed.error };
   if (!parsed.password) return { error: t("passwordRequired") };
 
@@ -98,8 +130,8 @@ export async function createUserAction(
     },
   });
 
-  revalidatePath("/settings/users");
-  return redirect({ href: "/settings/users", locale: await getLocale() });
+  revalidatePath(actor.listPath);
+  return redirect({ href: actor.listPath, locale: await getLocale() });
 }
 
 export async function updateUserAction(
@@ -108,11 +140,17 @@ export async function updateUserAction(
   formData: FormData
 ): Promise<UserFormState> {
   const t = await getTranslations("settings.users.errors");
-  const parsed = await readUserForm(formData);
-  if ("error" in parsed) return { error: parsed.error };
+  const actor = await getActor();
+  if (!actor) return { error: t("forbidden") };
 
-  const before = await getUserById(id);
+  const before = ObjectId.isValid(id) ? await getUserById(id) : null;
   if (!before) return { error: t("notFound") };
+  if (!canManageUser(actor.user, before, actor.ownCelebrationIds)) {
+    return { error: t("forbidden") };
+  }
+
+  const parsed = await readUserForm(formData, actor);
+  if ("error" in parsed) return { error: parsed.error };
 
   try {
     await updateUser(id, parsed);
@@ -146,13 +184,18 @@ export async function updateUserAction(
     },
   });
 
-  revalidatePath("/settings/users");
-  return redirect({ href: "/settings/users", locale: await getLocale() });
+  revalidatePath(actor.listPath);
+  return redirect({ href: actor.listPath, locale: await getLocale() });
 }
 
 export async function deleteUserAction(id: string): Promise<void> {
-  const user = await getUserById(id);
+  const actor = await getActor();
+  if (!actor) return;
+  const user = ObjectId.isValid(id) ? await getUserById(id) : null;
   if (!user) return;
+  if (!canManageUser(actor.user, user, actor.ownCelebrationIds)) return;
+  // Never let anyone delete the account they're currently using.
+  if (user._id.equals(actor.user._id)) return;
 
   await deleteUser(id);
 
@@ -170,5 +213,5 @@ export async function deleteUserAction(id: string): Promise<void> {
     },
   });
 
-  revalidatePath("/settings/users");
+  revalidatePath(actor.listPath);
 }

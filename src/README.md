@@ -20,6 +20,43 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Seeded demo data
+
+On every server boot, `lib/seed` (`runSeeders()`) creates whatever is missing; it never deletes anything:
+
+- **Root** user
+- **1 Professional**, "Test Company" (Premium, full contact data and logo), who owns 3 fully-populated celebrations:
+  - **Dimitris & Maria Marriage**: the showcase wedding (every tab: info, story and timeline, events with map points, guests in each RSVP state, live-event photos, hero and invitation images). Both spouses get **Couple** logins.
+  - **Nikos & Eleni Wedding**: public site on, max guests shown. No logins.
+  - **Christening of Alexandros**: Christening type, Greek and English only. No logins.
+- 2 subscription packages (Free, Basic)
+
+### Logins
+
+Every non-Root user shares the same password. The table is also printed to the server log at the end of seeding (outside production).
+
+The Root password is never stored in the repo. It is read from `SEED_ROOT_PASSWORD` (root `.env` for Docker, `src/.env.local` for local dev) and used only when the Root user is first created. If it's unset outside production, a random password is generated and printed once in the seed table. In production, Root is not created without it.
+
+| Email | Password | Role |
+|---|---|---|
+| ditoskas@gmail.com | `SEED_ROOT_PASSWORD` | Root |
+| test@o-gamos-mas.com | Test123456! | Professional |
+| dimitris-husband@o-gamos-mas.com | Test123456! | Couple |
+| maria-wife@o-gamos-mas.com | Test123456! | Couple |
+
+### Starting over
+
+`npm run seed:reset -- --yes` drops the whole database and empties the S3 bucket (it refuses to run with `NODE_ENV=production`). Restart the server to reseed:
+
+```bash
+# Docker
+docker compose exec backend npm run seed:reset -- --yes
+docker compose restart backend
+
+# Local (from src/)
+node --env-file=.env.local scripts/seed-reset.mjs --yes   # then restart npm run dev
+```
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

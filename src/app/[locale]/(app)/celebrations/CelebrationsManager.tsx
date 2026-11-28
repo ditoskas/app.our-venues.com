@@ -96,13 +96,16 @@ export default function CelebrationsManager({
           />
         }
         action={
-          <button
-            type="button"
-            onClick={() => setDialog({ mode: "create" })}
-            className="rounded-md bg-accent-dark px-4 py-2 text-sm font-medium tracking-wide text-white transition-opacity hover:opacity-90"
-          >
-            {t("newCelebration")}
-          </button>
+          // Couples manage their existing celebration; only Root/Professional create.
+          role === "Couple" ? undefined : (
+            <button
+              type="button"
+              onClick={() => setDialog({ mode: "create" })}
+              className="rounded-md bg-accent-dark px-4 py-2 text-sm font-medium tracking-wide text-white transition-opacity hover:opacity-90"
+            >
+              {t("newCelebration")}
+            </button>
+          )
         }
       />
 

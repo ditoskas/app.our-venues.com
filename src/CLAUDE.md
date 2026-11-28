@@ -141,7 +141,8 @@ src/
           actions.ts              Server actions: create/update/delete
                                    (each re-checks role — see "Authentication")
         profile/
-          page.tsx, actions.ts, ProfileForm.tsx, ChangePasswordForm.tsx
+          page.tsx, actions.ts, ProfileForm.tsx, ChangePasswordForm.tsx,
+          ActAsForm.tsx (Root-only "Act as" section — see "Authentication")
         settings/
           layout.tsx         Two-column shell: <SettingsSidebar /> + content
           page.tsx            General settings (placeholder)
@@ -202,9 +203,12 @@ src/
                                      success, no lookup/code logic yet. See
                                      PUBLIC-API.md.
     globals.css            Tailwind import + design tokens (@theme) + .input
-    favicon.ico
   components/
-    Navbar.tsx             Top nav, active-link highlighting, <UserMenu />
+    Navbar.tsx             Top nav: brand logo (assets/brand/logo-vertical.png
+                             via next/image), active-link highlighting,
+                             <UserMenu />
+    ActingAsBanner.tsx      Server: top strip shown while Root is "acting as"
+                             another user, with a Stop button
     UserMenu.tsx             Display-name dropdown (<details>-based, no client
                               state needed): Profile link + Logout button
     SettingsSidebar.tsx     Settings sub-nav (General / Users /
@@ -222,10 +226,12 @@ src/
                              real `professionalId`; used by Celebrations' form
                              for the Root role — see "Celebrations" below
   assets/
+    brand/                 logo-vertical.png — the navbar logo (from the
+                            our-venues brand kit), statically imported
     seed/                  Source files for seed data (a logo image,
                             timeline/ — 3 JPEGs for the seeded celebration's
                             timeline) — not served to the browser, only
-                            read by seed.ts
+                            read by lib/seed/
   i18n/
     routing.ts              defineRouting: locales el|en|ru, default el
     navigation.ts            Localized Link/redirect/usePathname/useRouter — use
@@ -256,9 +262,11 @@ src/
     googleMaps.ts               "use client" — loadGoogleMaps(apiKey), the
                                Maps JS API script-tag loader used by
                                GoogleMapPicker.tsx (see "Events")
-    seed.ts                   runSeeders() — idempotent seed for the root
-                               user, test professional, and the two starter
-                               subscription packages
+    seed/                     runSeeders() — idempotent demo data (see
+                               "Seeding" below): index.ts (orchestrator +
+                               credentials table), types.ts, assets.ts,
+                               data/ (root, professional, packages,
+                               celebrations/*), seeders/ (one per entity)
     session.ts                Pure session-token sign/verify (Web Crypto,
                                Edge-safe) — no next/headers, importable from proxy.ts
     auth.ts                    Cookie I/O + getCurrentUser()/getCurrentUserId()/
@@ -272,7 +280,14 @@ src/
   scripts/
     migrate-uploads-to-s3.mjs  One-off: copies an old on-disk UPLOADS_DIR tree
                                into the bucket under the same keys
-  public/
+    seed-reset.mjs             `npm run seed:reset -- --yes`: drops the DB +
+                               empties the bucket (never in production);
+                               restart the server to reseed
+  public/                  Brand-kit favicons + site.webmanifest, served at the
+                            site root (proxy.ts skips paths with an extension);
+                            wired up via `metadata.icons`/`manifest` and
+                            `viewport.themeColor` in [locale]/layout.tsx — no
+                            app/favicon.ico (it would clash with public/'s)
   package.json, tsconfig.json, next.config.ts (wrapped with
   createNextIntlPlugin), eslint.config.mjs, postcss.config.mjs, .gitignore,
   .env.local.example, README.md, AGENTS.md, PUBLIC-API.md (see "What this
@@ -289,7 +304,8 @@ Every page requires login except `/login` itself (enforced by `proxy.ts`
 **navbar** + a **body** region (`<main>`) that each route renders into.
 Navbar sections, in order:
 
-Celebrations · Professionals · Settings
+Celebrations · Professionals · Settings (Root) — Celebrations · Users
+(Professional) — Celebrations (Couple); see "Role access matrix" below.
 
 `Navbar.tsx`'s `NAV_KEYS` deliberately does **not** list every route that
 exists — Couples/Story/Events/Guests (see below) still have live pages at
@@ -333,12 +349,36 @@ user menu.
 - **LogActions** (`/settings/log-actions`) — read-only viewer over the
   `LogActions` audit collection.
 
-Users and LogActions are meant to be **Root/Professional only** — this
-role-based restriction is **not yet enforced**. The proxy only checks
-"logged in or not"; it doesn't check `role`. Any authenticated user
-(including a `Couple`) can currently reach every route. Enforcing the
-Root/Professional-only restriction on these two pages specifically is a
-TODO — don't assume it's already gated by role.
+**The whole Settings area is Root-only** — enforced once in
+`settings/layout.tsx` (`requirePageRole(["Root"])`), plus each settings
+page/action re-checks on its own.
+
+### Role access matrix
+
+| Section | Root | Professional | Couple |
+|---|---|---|---|
+| Celebrations (list + View tabs) | all | own (`professionalId`) | own (`coupleId` = celebration `_id`) |
+| Create celebration | ✓ | ✓ | ✗ (edit/delete own only) |
+| Users (`/users`) | — | own login (read-only) + Couple users of own celebrations (CRUD) | ✗ |
+| Professionals, Settings, Couples/Story/Events/Guests placeholders | ✓ | ✗ | ✗ |
+| Profile | ✓ | ✓ | ✓ |
+
+- Navbar items and dashboard cards per role come from
+  `lib/roleAccess.ts` (`NAV_KEYS_BY_ROLE`, `DASHBOARD_SECTIONS_BY_ROLE`,
+  client-safe) — presentation only; pages/actions still enforce access.
+- **One ownership rule for celebrations**: `canAccessCelebration()` in
+  `lib/celebrationAccess.ts` — used by the list filter, `[id]/access.ts`,
+  both celebrations `actions.ts` files and every
+  `/api/celebrations/**` route. Change it there, never inline a role check.
+- **User scope**: `lib/userScope.ts` (`canManageUser`,
+  `listUsersInScope`, `listOwnCelebrationOptions`). `settings/users/
+  actions.ts` serves both Root (`/settings/users`) and Professional
+  (`/users`, `users/page.tsx` reusing `UsersManager` with
+  `celebrationOptions` + `manageableIds`): for a Professional the role is
+  forced to `Couple` and `coupleId` must be one of their own celebrations,
+  derived server-side. Nobody can delete their own account there.
+- "Act as" (see "Authentication") inherits all of this automatically,
+  since it swaps the effective user.
 
 ## Page structure
 
@@ -479,13 +519,43 @@ than hardcoding hex values.
 - Self-service (a user managing *their own* account — display name,
   default language, password) lives at `/profile` — see "Application
   shape" above and "Authentication" below.
-- **Seeding**: `src/lib/seed.ts` → `runSeeders()` is idempotent (checks
-  `getUserByUsername`/company name before inserting) and creates one Root
-  user if missing: display name "Dimitris Toskas", username
-  `ditoskas@gmail.com`. It's invoked automatically from
-  `src/instrumentation.ts`'s `register()` hook on every server boot (dev
-  and prod) — no manual seed command to remember to run. Add further
-  seed data by extending `runSeeders()`.
+- **Seeding**: see "Seeding" below — `lib/seed/` creates the Root user
+  ("Dimitris Toskas", `ditoskas@gmail.com`) plus the demo Professional and
+  Couple logins, automatically at every server boot.
+
+## Seeding
+
+`lib/seed/` (`runSeeders()`, called from `instrumentation.ts` at every
+boot) builds a demo dataset that exercises every feature. **The README's
+"Seeded demo data" section is the user-facing summary + credentials table —
+keep it in sync when seed data changes.**
+
+- Never deletes: each record is matched by a natural key (username,
+  companyName, celebration title, package name) and only created when
+  missing. An existing celebration is not re-populated — to pick up changed
+  seed content, `npm run seed:reset -- --yes` and restart.
+- Contents: Root user; 1 Professional ("Test Company", Premium, full data +
+  logo) + its login; 3 fully-populated celebrations it owns —
+  `weddingDimitrisMaria.ts` (showcase, only one with
+  `createCoupleLogins: true` → 2 Couple logins), `weddingNikosEleni.ts`
+  (public site on), `christeningAlexandros.ts` (Christening, el+en only);
+  2 subscription packages.
+- **The Root password is never in code** (the GitHub repo is public): it
+  comes from the `SEED_ROOT_PASSWORD` env var (root `.env` → docker-compose,
+  or `src/.env.local`), used only when the Root user is first created. Unset
+  → a random one is generated and shown once in the seed table (dev), or
+  Root isn't created at all (production). Never commit a real password to
+  `lib/seed/` or the README.
+- Every non-Root login uses `SEED_USER_PASSWORD` (= `PROFESSIONAL_USER_PASSWORD`).
+  `runSeeders()` prints an Email/Password/Role/Name table at the end,
+  skipped when `NODE_ENV=production`.
+- `seedSpouseUser()` re-links a Couple login whose `coupleId` points at a
+  celebration that no longer exists; a valid link is never changed.
+- Seed images come from `src/assets/seed/` via the uploads `*FromPath`
+  helpers (not quota-checked), including
+  `saveCelebrationHeroBackgroundFromPath`/`saveCelebrationInvitationFromPath`.
+- Add a celebration: new file in `data/celebrations/`, append it to
+  `CELEBRATION_SEEDS` in `index.ts`, update the README.
 
 ## Professionals
 
@@ -525,16 +595,14 @@ than hardcoding hex values.
   is the standard way to display contact info in any list table — Celebrations'
   husband/wife cells (`SpouseCell` in `CelebrationsManager.tsx`) reuse the
   same pattern.
-- **Seeding**: `runSeeders()` also creates one "Test Company" professional
-  (contact "Test Person", phone `0123456789`, mobile `9876543210`, email
-  `test@o-gamos-mas.com`) with a placeholder logo copied from
-  `src/assets/seed/test-company-logo.png`. Idempotency check is by
-  `companyName` (no unique index on it, unlike `Users.username` — fine
-  for a single seed record, would need a proper lookup if more seed
-  professionals are ever added).
+- **Seeding**: the one demo professional ("Test Company", email
+  `test@o-gamos-mas.com`, Premium, full contact data, logo from
+  `src/assets/seed/test-company-logo.png`) lives in
+  `lib/seed/data/professional.ts` — see "Seeding" above. Idempotency is by
+  `companyName` (no unique index on it).
 - **Every Professional gets a matching login**, created alongside it —
   `createLinkedUser()`/`syncLinkedUser()` in `professionals/actions.ts`
-  (and the seeder's own inline equivalent, for the seeded Test Company):
+  (and the seeder's `seedProfessionalUser()`, for the seeded Test Company):
   `role: "Professional"`, `professionalId` set to the professional's own
   id, `displayName` = company name, `username` = the professional's
   email, password `PROFESSIONAL_USER_PASSWORD` (`src/lib/users.ts` —
@@ -688,11 +756,14 @@ section.
     whatever was last saved on the Celebration Info tab). A freshly created
     celebration gets `["el"]` at `createCelebration()` time, same as the
     fallback default.
-- **`/celebrations` is Root + Professional only** (Couple is excluded),
-  same double-enforcement pattern as Professionals (see "Professionals"
-  and "Authentication" above): page-level `requirePageRole(["Root",
-  "Professional"])` in `celebrations/page.tsx`, plus each Server Action in
-  `celebrations/actions.ts` independently re-checking via `assertAccess()`.
+- **`/celebrations` is open to all three roles, scoped per row** by
+  `canAccessCelebration()` (see "Role access matrix"), same
+  double-enforcement pattern as Professionals: page-level
+  `requirePageRole` + filter in `celebrations/page.tsx`, plus each Server
+  Action independently re-checking via `assertAccess()`/
+  `assertTabAccess()`. A Couple can edit/delete their own celebration but
+  not create one; on update their `professionalId` is always kept from the
+  existing record (`resolveProfessionalId(user, formData, existing)`).
 - **Professional scoping differs by role** — this is the first section
   with per-row ownership, not just an all-or-nothing role gate:
   - **Root** sees every celebration and must explicitly pick the owning
@@ -733,10 +804,13 @@ section.
   structure" — the search matches on title, the translated type label,
   both spouses' full contact info, and the resolved professional's
   company name.
-- **Seeding**: `runSeeders()` (`src/lib/seed.ts`) creates one
-  "Dimitris & Maria Marriage" test celebration (`TEST_CELEBRATION_SEED`,
-  via `seedCelebration(professionalId, seed: CelebrationSeed)`, idempotent
-  by `title`) attached to the seeded Test Company professional. It covers
+- **Seeding**: three seeded celebrations (see "Seeding" above); the
+  showcase one described here is "Dimitris & Maria Marriage"
+  (`lib/seed/data/celebrations/weddingDimitrisMaria.ts`, via
+  `seedCelebration(professionalId, seed: CelebrationSeed)` in
+  `lib/seed/seeders/celebration.ts`, idempotent by `title`), attached to
+  the seeded Test Company professional. It also gets hero-background and
+  invitation images. It covers
   both fixtures in one record: husband/wife have emails
   (`dimitris-husband@o-gamos-mas.com` / `maria-wife@o-gamos-mas.com`), so
   it gets the two Couple-role logins (same shared
@@ -1198,7 +1272,7 @@ it or just start real from day one.
   "Story tab"/"View page" above for the extra ownership check they layer
   on top. All three also have a **public**, unauthenticated counterpart
   under `/api/public/celebration/[guid]/...` — see `PUBLIC-API.md`.
-- `src/assets/seed/` holds source assets read only by `lib/seed.ts` at
+- `src/assets/seed/` holds source assets read only by `lib/seed/` at
   seed time (resolved via `path.join(process.cwd(), "assets", ...)`). It
   is **not** a runtime uploads location and isn't served to the browser.
 
@@ -1217,7 +1291,7 @@ itself, and its Server Actions must independently re-check the role too.
 
 - **Session mechanism**: a signed, stateless cookie (`og_session`, 7-day
   expiry) — not a DB-backed session table. The token is
-  `base64url(JSON{sub,exp}).base64url(HMAC-SHA256 signature)`, signed with
+  `base64url(JSON{sub,act?,exp}).base64url(HMAC-SHA256 signature)`, signed with
   the `SESSION_SECRET` env var. Verification uses Web Crypto
   (`crypto.subtle`) and manual base64url helpers instead of
   `node:crypto`/`Buffer`, specifically so it works unmodified in both the
@@ -1260,6 +1334,23 @@ itself, and its Server Actions must independently re-check the role too.
   `settings/users/actions.ts` for the pattern). The `"system"` fallback
   only matters for actions truly not tied to a request (e.g. the boot-time
   seeder).
+- **"Act as" (Root-only impersonation)**: the session token may carry an
+  optional `act` field (target user id) next to `sub`. `resolveSession()`
+  in `auth.ts` (React-`cache`d per request) honors it **only** while the
+  real `sub` user is still `Root` and the target exists and is not `Root`
+  — re-checked every request, so a forged/stale `act` is just ignored.
+  While active, `getCurrentUser()`/`getCurrentUserId()` return the
+  **target** — every page, action, role gate and ownership filter behaves
+  exactly as if the target had logged in; never special-case Root there.
+  Only the feature itself reads the real user (`getRealUser()` /
+  `resolveSession().realUser`). Started/stopped from the Profile page's
+  "Act as" section (`startActingAsAction`/`stopActingAsAction` in
+  `profile/actions.ts`, which check the *real* user's role) — `setActingAs()`
+  re-issues the cookie keeping the original `exp`, so it can't extend a
+  session. `ActingAsBanner` (in `(app)/layout.tsx`) shows a Stop button on
+  every page. Audit: `logAction()` automatically adds `actingAsBy` (the
+  real Root user id) to any entry written while acting as someone; the
+  LogActions page shows it under the user column.
 - Env var: `SESSION_SECRET` (see `.env.local.example` — generate with
   `openssl rand -base64 32`; docker-compose uses a fixed dev value).
 
@@ -1317,7 +1408,7 @@ per-feature.**
   - Redirecting from a Server Action needs the locale explicitly:
     `redirect({ href, locale: await getLocale() })` (see
     `settings/users/actions.ts`).
-- The `brand` key (`"O Gamos Mas"`) and the `settings.sidebar.logActions`
+- The `brand` key (`"Our Venues"`) and the `settings.sidebar.logActions`
   label (`"LogActions"`) are deliberately **not translated** in any
   locale — they're proper nouns / a literal collection name, not prose.
   Role display labels (`settings.users.roles.*`) *are* translated for
@@ -1337,6 +1428,44 @@ per-feature.**
 - Typed message keys: `src/global.d.ts` augments next-intl's `AppConfig`
   from `messages/en.json` (the canonical shape) — if you restructure
   messages, `en.json` is the source of truth other locales must match.
+
+## Celebration subdomains
+
+Premium celebrations can reserve `{label}.o-gamos-mas.com` (Marriage) or
+`{label}.vaftizomai.com` (Christening) for event −1 month … +1 week; every
+celebration also has a never-expiring permanent link
+`app.our-venues.com/celebrations/{guid}`. **Decisions, data model and the
+phased plan live in `docs/CELEBRATION-SUBDOMAINS.md` — read it before
+touching this feature, and keep it updated.**
+
+Serving: `proxy.ts` routes celebration hosts and unprefixed
+`/celebrations/{uuid}` paths (before any locale/auth logic) to
+`app/api/site/entry/route.ts`, which returns the frontend SPA's
+`index.html` with the celebration injected, or a 302 to the marketing
+site. The SPA's assets live under `/site/` (proxied to the frontend
+locally via `next.config.ts`; `site/` is excluded from the proxy matcher).
+Don't add an app route named `site`, and keep `/celebrations/{uuid}` free
+(admin celebration URLs are always locale-prefixed with an ObjectId).
+
+## Deployment (production)
+
+Production deployment is **not** done from this repo. The Ansible
+provisioning/deployment scripts live in a separate repo:
+`C:\Users\toska\My Drive (ditoskas@gmail.com)\MyProjects\server-scripts`
+(read its own `CLAUDE.md` first). It provisions per-domain vhosts under
+`/data/customers/{sys_user}/vhosts/{domain}/`, builds Next.js backends under
+PM2 and React frontends as static files, and generates nginx configs from
+`nginx/config/*.j2`. The closest existing stack to this app + the frontend
+is `deploy-thinkcms-with-react-frontend.yml` (Next.js backend behind `/api`
++ React SPA at `/`). TLS is per-domain certbot (`letsencrypt.yml`). That
+repo contains real credentials — never copy values from it into this one.
+The `docker-compose.yml` here is for local development only.
+
+This app is deployed by `server-scripts`' `deployments/deployment-our-venues-app.yml` (domain
+`app.our-venues.com`, Custom CMS in the `my.thinkpozitive.net` admin panel), and the celebration
+domains by `deployments/deployment-our-venues-celebration-site.yml` — the full rollout table
+(admin-panel settings, env vars, DNS, order) is in `docs/CELEBRATION-SUBDOMAINS.md` →
+"Production rollout".
 
 ## Docker
 

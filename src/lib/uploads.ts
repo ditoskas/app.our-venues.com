@@ -321,6 +321,36 @@ export async function saveCelebrationInvitation(
   );
 }
 
+// Seeder variants of the two fixed-name celebration images above.
+async function saveCelebrationImageFromPath(
+  professionalId: string,
+  celebrationId: string,
+  baseName: "hero-background" | "invitation",
+  sourcePath: string
+): Promise<string> {
+  const prefix = celebrationImagesPrefix(professionalId, celebrationId);
+  await deleteByPrefix(`${prefix}${baseName}.`);
+  const filename = `${baseName}${path.extname(sourcePath)}`;
+  await putLocalFile(`${prefix}${filename}`, sourcePath);
+  return filename;
+}
+
+export async function saveCelebrationHeroBackgroundFromPath(
+  professionalId: string,
+  celebrationId: string,
+  sourcePath: string
+): Promise<string> {
+  return saveCelebrationImageFromPath(professionalId, celebrationId, "hero-background", sourcePath);
+}
+
+export async function saveCelebrationInvitationFromPath(
+  professionalId: string,
+  celebrationId: string,
+  sourcePath: string
+): Promise<string> {
+  return saveCelebrationImageFromPath(professionalId, celebrationId, "invitation", sourcePath);
+}
+
 export async function readCelebrationImage(
   professionalId: string,
   celebrationId: string,

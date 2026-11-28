@@ -1,5 +1,7 @@
 "use server";
 
+import { canAccessCelebration } from "@/lib/celebrationAccess";
+import { deleteCelebrationSubdomain, followCelebrationChange } from "@/lib/subdomainReservations";
 import { revalidatePath } from "next/cache";
 import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
@@ -24,28 +26,33 @@ export interface CelebrationFormState {
   error?: string;
 }
 
-// Root and Professional only. A Professional may only touch their own
-// celebrations (professionalId must match their own) — checked whenever an
-// existing celebration is involved (update/delete).
+// Create: Root and Professional only. Update/delete of an existing
+// celebration: anyone canAccessCelebration() allows — Root, the owning
+// Professional, or the Couple whose coupleId points at it.
 async function assertAccess(existing?: Celebration): Promise<{ error: string } | { user: User }> {
   const t = await getTranslations("celebrations.errors");
   const user = await getCurrentUser();
-  if (!user || (user.role !== "Root" && user.role !== "Professional")) {
-    return { error: t("forbidden") };
-  }
-  if (existing && user.role === "Professional" && existing.professionalId !== user.professionalId) {
+  if (!user) return { error: t("forbidden") };
+  if (existing) {
+    if (!canAccessCelebration(user, existing)) return { error: t("forbidden") };
+  } else if (user.role !== "Root" && user.role !== "Professional") {
     return { error: t("forbidden") };
   }
   return { user };
 }
 
 // Root picks the professional explicitly (form field); a Professional is
-// always scoped to their own linked professional record, regardless of
-// what (if anything) the form submitted — never trust client input for this.
+// always scoped to their own linked professional record, and a Couple always
+// keeps the celebration's existing professional, regardless of what (if
+// anything) the form submitted — never trust client input for this.
 function resolveProfessionalId(
   user: User,
-  formData: FormData
+  formData: FormData,
+  existing?: Celebration
 ): { error: "forbidden" | "professionalRequired" } | { professionalId: string } {
+  if (user.role === "Couple") {
+    return existing ? { professionalId: existing.professionalId } : { error: "forbidden" };
+  }
   if (user.role === "Professional") {
     return user.professionalId
       ? { professionalId: user.professionalId }
@@ -132,16 +139,25 @@ export async function updateCelebrationAction(
   const parsed = readCelebrationForm(formData);
   if ("error" in parsed) return { error: t("required") };
 
-  const professional = resolveProfessionalId(access.user, formData);
+  const professional = resolveProfessionalId(access.user, formData, before);
   if ("error" in professional) return { error: t(professional.error) };
+
+  // A reserved subdomain follows the type (its domain); a clash rejects it.
+  const actorId = (await getCurrentUserId()) ?? "system";
+  const follow = await followCelebrationChange(
+    id,
+    parsed.title,
+    { type: parsed.type, celebrationDate: before.celebrationDate },
+    actorId
+  );
+  if (!follow.ok) return { error: t("subdomainClash", { label: follow.label }) };
 
   try {
     await updateCelebration(id, { ...parsed, professionalId: professional.professionalId });
   } catch {
+    await followCelebrationChange(id, before.title, before, actorId); // move it back
     return { error: t("updateFailed") };
   }
-
-  const actorId = (await getCurrentUserId()) ?? "system";
 
   await logAction({
     userId: actorId,
@@ -168,6 +184,7 @@ export async function deleteCelebrationAction(id: string): Promise<void> {
 
   await deleteCelebration(id);
   await deleteCelebrationUploads(celebration.professionalId, id);
+  await deleteCelebrationSubdomain(id);
 
   await logAction({
     userId: (await getCurrentUserId()) ?? "system",

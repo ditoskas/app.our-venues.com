@@ -1,18 +1,16 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
+import { requirePageRole } from "@/lib/auth";
+import { DASHBOARD_SECTIONS_BY_ROLE } from "@/lib/roleAccess";
 
-const SECTION_KEYS = [
-  "celebrations",
-  "professionals",
-  "couples",
-  "story",
-  "events",
-  "guests",
-  "settings",
-] as const;
+export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const t = await getTranslations("dashboard");
+  const [t, user] = await Promise.all([
+    getTranslations("dashboard"),
+    requirePageRole(["Root", "Professional", "Couple"]),
+  ]);
+  const sectionKeys = DASHBOARD_SECTIONS_BY_ROLE[user.role];
 
   return (
     <div>
@@ -25,7 +23,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {SECTION_KEYS.map((key) => (
+        {sectionKeys.map((key) => (
           <Link
             key={key}
             href={`/${key}`}

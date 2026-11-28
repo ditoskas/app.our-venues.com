@@ -1,11 +1,12 @@
 {
-  "brand": "O Gamos Mas",
+  "brand": "Our Venues",
   "common": {
     "close": "Close",
     "actions": "Actions",
     "storageQuotaExceeded": "Not enough storage space: {used} of {quota} used, this upload needs {incoming}. Remove some images or ask for a larger quota."
   },
   "nav": {
+    "users": "Users",
     "celebrations": "Celebrations",
     "professionals": "Professionals",
     "couples": "Couples",
@@ -17,7 +18,6 @@
     "logout": "Log out"
   },
   "login": {
-    "subtitle": "Sign in to the O Gamos Mas admin.",
     "username": "Username",
     "password": "Password",
     "submit": "Sign in",
@@ -30,8 +30,9 @@
   "dashboard": {
     "eyebrow": "Welcome back",
     "title": "Dashboard",
-    "subtitle": "A single place to plan and orchestrate every wedding and christening on O Gamos Mas.",
+    "subtitle": "A single place to plan and orchestrate every wedding and christening on Our Venues.",
     "sections": {
+      "users": { "label": "Users", "description": "Logins for your couples." },
       "celebrations": { "label": "Celebrations", "description": "Active marriage and christening celebrations." },
       "professionals": { "label": "Professionals", "description": "Photographers, venues, and vendors." },
       "couples": { "label": "Couples", "description": "Couple profiles and contact details." },
@@ -89,6 +90,8 @@
       "confirmAction": "Confirm",
       "cancel": "Cancel",
       "form": {
+        "celebration": "Celebration",
+        "selectCelebration": "Select a celebration…",
         "displayName": "Display name",
         "username": "Username",
         "password": "Password",
@@ -108,6 +111,7 @@
         "Couple": "Couple"
       },
       "errors": {
+        "forbidden": "You don't have permission to manage this user.",
         "required": "Display name, username, and role are required.",
         "professionalIdRequired": "Professional ID is required for the Professional role.",
         "coupleIdRequired": "Couple ID is required for the Couple role.",
@@ -154,6 +158,7 @@
       }
     },
     "logActions": {
+      "actingAsBy": "via Root {userId}",
       "title": "LogActions",
       "description": "Audit trail of actions taken across the admin.",
       "empty": "No actions logged yet.",
@@ -191,6 +196,20 @@
       "currentPasswordIncorrect": "Current password is incorrect.",
       "newPasswordRequired": "New password is required.",
       "passwordsDoNotMatch": "New passwords do not match."
+    },
+    "actAs": {
+      "title": "Act as",
+      "description": "Use the app as another user — with exactly their permissions and data, as if they had logged in themselves. Everything you do is recorded in LogActions under your own account too.",
+      "user": "User",
+      "selectUser": "Select a user…",
+      "start": "Act as this user",
+      "starting": "Switching…",
+      "stop": "Stop acting as",
+      "banner": "You are acting as {name} ({username}) — signed in as {realName}.",
+      "errors": {
+        "notAllowed": "Only the Root user can use “Act as”.",
+        "userRequired": "Please select a valid user."
+      }
     }
   },
   "professionals": {
@@ -274,7 +293,8 @@
       "story": "Story",
       "events": "Events",
       "liveEvents": "Live Events",
-      "guests": "Guests"
+      "guests": "Guests",
+      "domain": "Domain"
     },
     "info": {
       "celebrationDate": "Celebration Date",
@@ -467,7 +487,51 @@
       "createFailed": "Could not create the celebration.",
       "updateFailed": "Could not update the celebration.",
       "notFound": "Celebration not found.",
-      "forbidden": "You don't have access to this page."
+      "forbidden": "You don't have access to this page.",
+      "subdomainClash": "This change clashes with another celebration's reservation of the subdomain \"{label}\". Change the subdomain first."
+    },
+    "domain": {
+      "permanentTitle": "Permanent link",
+      "permanentDescription": "This link works for every celebration and never expires. Use it on printed invitations and QR codes.",
+      "subdomainTitle": "Personal subdomain",
+      "subdomainDescription": "A memorable address for your celebration site, active from one month before the event until one week after it. Outside that period it redirects to our-venues.com.",
+      "premiumRequired": "Personal subdomains are a Premium feature. Free celebrations use the permanent link.",
+      "premiumLapsed": "Your plan is no longer Premium. The current subdomain is kept, but it can't be changed.",
+      "dateRequired": "Set the celebration date in Celebration Info first — the subdomain's active period is calculated from it.",
+      "label": "Subdomain",
+      "changeLabel": "Change subdomain",
+      "available": "Available for your period.",
+      "isCurrent": "This is your current subdomain.",
+      "period": "Active from {from} to {to} (Athens time).",
+      "invitationHint": "The subdomain only works during this period — for printed invitations use the permanent link above.",
+      "reserve": "Reserve",
+      "change": "Change subdomain",
+      "saving": "Saving…",
+      "currentTitle": "Current subdomain",
+      "status": {
+        "upcoming": "Upcoming",
+        "active": "Active",
+        "ended": "Ended"
+      },
+      "release": "Release subdomain",
+      "releaseConfirm": "Release it? Someone else may take it.",
+      "releaseYes": "Release",
+      "cancel": "Cancel",
+      "copy": "Copy link",
+      "copied": "Copied!",
+      "errors": {
+        "notFound": "Celebration not found.",
+        "premiumRequired": "Personal subdomains are a Premium feature.",
+        "dateRequired": "Set the celebration date first.",
+        "taken": "Not available for your period — another celebration has reserved it.",
+        "invalid": {
+          "length": "Use 3 to 63 characters.",
+          "characters": "Use only lowercase Latin letters (a–z), digits and hyphens.",
+          "hyphenEdge": "It can't start or end with a hyphen.",
+          "punycode": "It can't start with \"xn--\".",
+          "reserved": "This name is reserved."
+        }
+      }
     }
   }
 }

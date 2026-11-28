@@ -10,7 +10,14 @@ import {
   verifyPassword,
 } from "@/lib/users";
 import { logAction } from "@/lib/logActions";
-import { getCurrentUserId } from "@/lib/auth";
+import { ObjectId } from "mongodb";
+import {
+  clearSessionCookie,
+  getCurrentUserId,
+  getRealUser,
+  resolveSession,
+  setActingAs,
+} from "@/lib/auth";
 import { routing, type AppLocale } from "@/i18n/routing";
 
 export interface ProfileFormState {
@@ -91,5 +98,70 @@ export async function changePasswordAction(
   return redirect({
     href: "/profile",
     locale: user.defaultLocale ?? routing.defaultLocale,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// "Act as" — Root-only impersonation. Always checked against the *real*
+// (logged-in) user, never the effective one, since while acting as someone
+// getCurrentUser() returns the target.
+// ---------------------------------------------------------------------------
+
+export interface ActAsFormState {
+  error?: string;
+}
+
+export async function startActingAsAction(
+  _prevState: ActAsFormState,
+  formData: FormData
+): Promise<ActAsFormState> {
+  const t = await getTranslations("profile.actAs.errors");
+  const realUser = await getRealUser();
+  if (!realUser || realUser.role !== "Root") return { error: t("notAllowed") };
+
+  const targetId = String(formData.get("userId") ?? "");
+  const target = ObjectId.isValid(targetId) ? await getUserById(targetId) : null;
+  if (!target) return { error: t("userRequired") };
+  if (target.role === "Root") return { error: t("notAllowed") };
+
+  await setActingAs(target._id.toString());
+
+  await logAction({
+    userId: realUser._id.toString(),
+    type: "warning",
+    category: "Security",
+    message: `Root user "${realUser.username}" started acting as "${target.username}" (${target.role})`,
+    dataTo: { actingAs: target._id.toString() },
+  });
+
+  // Land exactly where the target would after logging in: their home page,
+  // in their own default language.
+  return redirect({
+    href: "/",
+    locale: target.defaultLocale ?? routing.defaultLocale,
+  });
+}
+
+export async function stopActingAsAction(): Promise<void> {
+  const session = await resolveSession();
+  if (!session) {
+    await clearSessionCookie(); // stale cookie (user gone) — avoid a /login loop
+    return redirect({ href: "/login", locale: routing.defaultLocale });
+  }
+
+  if (session.isActingAs) {
+    await setActingAs(null);
+    await logAction({
+      userId: session.realUser._id.toString(),
+      type: "info",
+      category: "Security",
+      message: `Root user "${session.realUser.username}" stopped acting as "${session.effectiveUser.username}"`,
+      dataFrom: { actingAs: session.effectiveUser._id.toString() },
+    });
+  }
+
+  return redirect({
+    href: "/profile",
+    locale: session.realUser.defaultLocale ?? routing.defaultLocale,
   });
 }

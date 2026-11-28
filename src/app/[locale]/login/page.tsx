@@ -1,5 +1,7 @@
 import { getTranslations } from "next-intl/server";
+import Image from "next/image";
 import LoginForm from "./LoginForm";
+import logo from "@/assets/brand/logo-vertical.png";
 
 export default async function LoginPage({
   searchParams,
@@ -12,11 +14,8 @@ export default async function LoginPage({
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <p className="font-serif text-3xl italic text-foreground">
-            {t("brand")}
-          </p>
-          <p className="mt-2 text-sm text-muted">{t("login.subtitle")}</p>
+        <div className="mb-8 flex justify-center">
+          <Image src={logo} alt={t("brand")} priority className="h-auto w-64 max-w-full" />
         </div>
 
         <div className="rounded-lg border border-border bg-surface p-8 shadow-sm">
