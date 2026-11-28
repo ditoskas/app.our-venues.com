@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { NextResponse, type NextRequest } from "next/server";
 import { getCelebrationById, getCelebrationByGuid } from "@/lib/celebrations";
 import { findActiveCelebrationIdByHost } from "@/lib/subdomainReservations";
@@ -93,9 +94,16 @@ async function loadSiteIndex(): Promise<string> {
   const isProd = process.env.NODE_ENV === "production";
   if (isProd && cached && Date.now() - cached.at < CACHE_MS) return cached.html;
 
-  const res = await fetch(siteIndexUrl(), { cache: "no-store", headers: { Accept: "text/html" } });
-  if (!res.ok) throw new Error(`HTTP ${res.status} from ${siteIndexUrl()}`);
-  const html = await res.text();
+  const source = siteIndexUrl();
+  let html: string;
+  if (source.startsWith("/")) {
+    // Production: the built frontend's index.html on this server's disk.
+    html = await readFile(source, "utf8");
+  } else {
+    const res = await fetch(source, { cache: "no-store", headers: { Accept: "text/html" } });
+    if (!res.ok) throw new Error(`HTTP ${res.status} from ${source}`);
+    html = await res.text();
+  }
   if (isProd) cached = { html, at: Date.now() };
   return html;
 }

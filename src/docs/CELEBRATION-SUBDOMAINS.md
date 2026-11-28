@@ -1,7 +1,9 @@
 # Celebration subdomains & permanent links
 
-Status: **Phases 1–3 done** and verified locally (reservations, serving the
-sites, frontend). Phase 4 (infrastructure) waits for the deployment concept.
+Status: **Phases 1–4 done.** Phase 4's playbooks are written and verified
+locally (nginx configs tested end to end); the production rollout (domains in
+the admin panel, Cloudflare token, first deploy) is the remaining manual step —
+see "Production rollout" below.
 
 ## Decisions
 
@@ -145,13 +147,13 @@ Env vars (backend):
 |---|---|---|
 | `MARKETING_URL` | `https://our-venues.com` (default) | default |
 | `CELEBRATION_SITE_HOST_SUFFIX` | empty | `.localhost` |
-| `SITE_INDEX_URL` | where the built `index.html` is reachable from the backend (e.g. `http://127.0.0.1/site/` via local nginx) | `http://frontend:3001/site/` |
+| `SITE_INDEX_URL` | absolute path of the built file: `/data/customers/thinkpozitive/vhosts/o-gamos-mas.com/www/frontend/index.html` | `http://frontend:3001/site/` |
 | `SITE_ORIGIN` | unset (nginx serves `/site/`) | `http://frontend:3001` |
 
 Frontend production build: `VITE_API_BASE_URL=/api` (same-origin on every
 host), output served at `/site/`.
 
-**Phase 4 — infrastructure** *(server-scripts, after the deployment concept)*
+**Phase 4 — infrastructure** *(server-scripts)* — ✅ done (see "Production rollout")
 Cloudflare DNS + wildcard records, wildcard-certificate playbook, wildcard
 nginx template (static `/site/`, `/api/` and pages → backend), landing pages
 for the bare domains, `/celebrations/` and `/site/` on `app.our-venues.com`.
@@ -166,3 +168,42 @@ Local testing without DNS: Chrome resolves `*.localhost`, e.g.
 serves inside the reservation's period — the seeded one is in 2032; widen
 `startsAt`/`endsAt` in `SubdomainReservations` to try it), and the
 permanent link `http://localhost:3000/celebrations/{guid}`.
+
+## Production rollout
+
+Deployment runs from the admin panel (`MyProjects\my.thinkpozitive.net`), which executes playbooks
+from `server-scripts`. All three domains go under the **thinkpozitive** customer, all with the
+**Custom** CMS, so the admin panel itself needs no code changes:
+
+| Domain (admin panel) | Setting | Value |
+|---|---|---|
+| `app.our-venues.com` | Backend CMS | Custom |
+| | Backend deployment script | `deployments/deployment-our-venues-app.yml` |
+| | Backend repository | `app.our-venues.com` |
+| | Backend port | e.g. `5000` (also used below) |
+| | Backend env | `MONGODB_URI`, `MONGODB_DB`, `SESSION_SECRET`, `SEED_ROOT_PASSWORD`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` (optional), `SITE_INDEX_URL=/data/customers/thinkpozitive/vhosts/o-gamos-mas.com/www/frontend/index.html` — **not** `SITE_ORIGIN` / `CELEBRATION_SITE_HOST_SUFFIX` |
+| | TLS | the normal "Let's Encrypt" action |
+| `o-gamos-mas.com` and `vaftizomai.com` | Frontend CMS | Custom |
+| | Frontend deployment script | `deployments/deployment-our-venues-celebration-site.yml` |
+| | Frontend repository | `frontend.our-venues.com` |
+| | Frontend env | `VITE_API_BASE_URL=/api` (+ `VITE_GOOGLE_MAPS_API_KEY=...`; never `VITE_CELEBRATION_ID`) |
+| | Backend port | **the app's port** (every request is proxied there) |
+| | TLS | **don't** use "Let's Encrypt" — the deploy issues the wildcard cert itself |
+
+Before the first deploy:
+1. Cloudflare (DNS for `o-gamos-mas.com` / `vaftizomai.com`): `A` records for `@` and `*` → the
+   server's IP (and `AAAA` if IPv6 is used).
+2. A Cloudflare API token with **Zone → DNS → Edit** on those two zones, in
+   `server-scripts/ansible/vars/tokens.yml` → `cloudflare_api_token`.
+3. GoDaddy (`our-venues.com`): `A` record `app` → the server's IP.
+
+Order: create the three vhosts, deploy `o-gamos-mas.com` and `vaftizomai.com` (createNginx), then
+`app.our-venues.com` (createNginx), then Let's Encrypt for `app.our-venues.com`. The app reads the
+SPA shell from `o-gamos-mas.com`'s build, so redeploy that domain whenever the frontend changes
+(and `vaftizomai.com` too — each serves its own `/site/` copy).
+
+Verified locally: the rendered nginx configs pass `nginx -t`; `celebration-sites.conf.j2` was run
+in a real nginx in front of the local app (HTTPS, wildcard-style names, the production frontend
+build) — http→https, bare domain / inactive / unknown subdomain → 302, `/site/` assets served by
+nginx with immutable caching, API `no-store`, active subdomain → SPA with the celebration injected.
+Both playbooks pass `ansible-playbook --syntax-check`. Not run against a real server yet.

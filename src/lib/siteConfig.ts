@@ -13,8 +13,10 @@ export function siteHostSuffix(): string {
   return process.env.CELEBRATION_SITE_HOST_SUFFIX ?? "";
 }
 
-// Where the backend fetches the frontend SPA's index.html from (the built
-// file in production, the Vite dev server locally).
+// Where the backend gets the frontend SPA's index.html: an absolute file
+// path (production — the built file in the celebration-domain vhost, e.g.
+// /data/customers/{user}/vhosts/o-gamos-mas.com/www/frontend/index.html) or
+// an http(s) URL (local — the Vite dev server).
 export function siteIndexUrl(): string {
   return process.env.SITE_INDEX_URL || "http://localhost:3001/site/";
 }

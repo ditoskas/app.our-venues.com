@@ -1461,6 +1461,12 @@ is `deploy-thinkcms-with-react-frontend.yml` (Next.js backend behind `/api`
 repo contains real credentials — never copy values from it into this one.
 The `docker-compose.yml` here is for local development only.
 
+This app is deployed by `server-scripts`' `deployments/deployment-our-venues-app.yml` (domain
+`app.our-venues.com`, Custom CMS in the `my.thinkpozitive.net` admin panel), and the celebration
+domains by `deployments/deployment-our-venues-celebration-site.yml` — the full rollout table
+(admin-panel settings, env vars, DNS, order) is in `docs/CELEBRATION-SUBDOMAINS.md` →
+"Production rollout".
+
 ## Docker
 
 `docker-compose.yml` (repo root) runs three services for local dev:
