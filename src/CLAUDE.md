@@ -231,7 +231,7 @@ src/
     seed/                  Source files for seed data (a logo image,
                             timeline/ — 3 JPEGs for the seeded celebration's
                             timeline) — not served to the browser, only
-                            read by seed.ts
+                            read by lib/seed/
   i18n/
     routing.ts              defineRouting: locales el|en|ru, default el
     navigation.ts            Localized Link/redirect/usePathname/useRouter — use
@@ -262,9 +262,11 @@ src/
     googleMaps.ts               "use client" — loadGoogleMaps(apiKey), the
                                Maps JS API script-tag loader used by
                                GoogleMapPicker.tsx (see "Events")
-    seed.ts                   runSeeders() — idempotent seed for the root
-                               user, test professional, and the two starter
-                               subscription packages
+    seed/                     runSeeders() — idempotent demo data (see
+                               "Seeding" below): index.ts (orchestrator +
+                               credentials table), types.ts, assets.ts,
+                               data/ (root, professional, packages,
+                               celebrations/*), seeders/ (one per entity)
     session.ts                Pure session-token sign/verify (Web Crypto,
                                Edge-safe) — no next/headers, importable from proxy.ts
     auth.ts                    Cookie I/O + getCurrentUser()/getCurrentUserId()/
@@ -278,6 +280,9 @@ src/
   scripts/
     migrate-uploads-to-s3.mjs  One-off: copies an old on-disk UPLOADS_DIR tree
                                into the bucket under the same keys
+    seed-reset.mjs             `npm run seed:reset -- --yes`: drops the DB +
+                               empties the bucket (never in production);
+                               restart the server to reseed
   public/                  Brand-kit favicons + site.webmanifest, served at the
                             site root (proxy.ts skips paths with an extension);
                             wired up via `metadata.icons`/`manifest` and
@@ -514,13 +519,37 @@ than hardcoding hex values.
 - Self-service (a user managing *their own* account — display name,
   default language, password) lives at `/profile` — see "Application
   shape" above and "Authentication" below.
-- **Seeding**: `src/lib/seed.ts` → `runSeeders()` is idempotent (checks
-  `getUserByUsername`/company name before inserting) and creates one Root
-  user if missing: display name "Dimitris Toskas", username
-  `ditoskas@gmail.com`. It's invoked automatically from
-  `src/instrumentation.ts`'s `register()` hook on every server boot (dev
-  and prod) — no manual seed command to remember to run. Add further
-  seed data by extending `runSeeders()`.
+- **Seeding**: see "Seeding" below — `lib/seed/` creates the Root user
+  ("Dimitris Toskas", `ditoskas@gmail.com`) plus the demo Professional and
+  Couple logins, automatically at every server boot.
+
+## Seeding
+
+`lib/seed/` (`runSeeders()`, called from `instrumentation.ts` at every
+boot) builds a demo dataset that exercises every feature. **The README's
+"Seeded demo data" section is the user-facing summary + credentials table —
+keep it in sync when seed data changes.**
+
+- Never deletes: each record is matched by a natural key (username,
+  companyName, celebration title, package name) and only created when
+  missing. An existing celebration is not re-populated — to pick up changed
+  seed content, `npm run seed:reset -- --yes` and restart.
+- Contents: Root user; 1 Professional ("Test Company", Premium, full data +
+  logo) + its login; 3 fully-populated celebrations it owns —
+  `weddingDimitrisMaria.ts` (showcase, only one with
+  `createCoupleLogins: true` → 2 Couple logins), `weddingNikosEleni.ts`
+  (public site on), `christeningAlexandros.ts` (Christening, el+en only);
+  2 subscription packages.
+- Every non-Root login uses `SEED_USER_PASSWORD` (= `PROFESSIONAL_USER_PASSWORD`).
+  `runSeeders()` prints an Email/Password/Role/Name table at the end,
+  skipped when `NODE_ENV=production`.
+- `seedSpouseUser()` re-links a Couple login whose `coupleId` points at a
+  celebration that no longer exists; a valid link is never changed.
+- Seed images come from `src/assets/seed/` via the uploads `*FromPath`
+  helpers (not quota-checked), including
+  `saveCelebrationHeroBackgroundFromPath`/`saveCelebrationInvitationFromPath`.
+- Add a celebration: new file in `data/celebrations/`, append it to
+  `CELEBRATION_SEEDS` in `index.ts`, update the README.
 
 ## Professionals
 
@@ -560,16 +589,14 @@ than hardcoding hex values.
   is the standard way to display contact info in any list table — Celebrations'
   husband/wife cells (`SpouseCell` in `CelebrationsManager.tsx`) reuse the
   same pattern.
-- **Seeding**: `runSeeders()` also creates one "Test Company" professional
-  (contact "Test Person", phone `0123456789`, mobile `9876543210`, email
-  `test@o-gamos-mas.com`) with a placeholder logo copied from
-  `src/assets/seed/test-company-logo.png`. Idempotency check is by
-  `companyName` (no unique index on it, unlike `Users.username` — fine
-  for a single seed record, would need a proper lookup if more seed
-  professionals are ever added).
+- **Seeding**: the one demo professional ("Test Company", email
+  `test@o-gamos-mas.com`, Premium, full contact data, logo from
+  `src/assets/seed/test-company-logo.png`) lives in
+  `lib/seed/data/professional.ts` — see "Seeding" above. Idempotency is by
+  `companyName` (no unique index on it).
 - **Every Professional gets a matching login**, created alongside it —
   `createLinkedUser()`/`syncLinkedUser()` in `professionals/actions.ts`
-  (and the seeder's own inline equivalent, for the seeded Test Company):
+  (and the seeder's `seedProfessionalUser()`, for the seeded Test Company):
   `role: "Professional"`, `professionalId` set to the professional's own
   id, `displayName` = company name, `username` = the professional's
   email, password `PROFESSIONAL_USER_PASSWORD` (`src/lib/users.ts` —
@@ -771,10 +798,13 @@ section.
   structure" — the search matches on title, the translated type label,
   both spouses' full contact info, and the resolved professional's
   company name.
-- **Seeding**: `runSeeders()` (`src/lib/seed.ts`) creates one
-  "Dimitris & Maria Marriage" test celebration (`TEST_CELEBRATION_SEED`,
-  via `seedCelebration(professionalId, seed: CelebrationSeed)`, idempotent
-  by `title`) attached to the seeded Test Company professional. It covers
+- **Seeding**: three seeded celebrations (see "Seeding" above); the
+  showcase one described here is "Dimitris & Maria Marriage"
+  (`lib/seed/data/celebrations/weddingDimitrisMaria.ts`, via
+  `seedCelebration(professionalId, seed: CelebrationSeed)` in
+  `lib/seed/seeders/celebration.ts`, idempotent by `title`), attached to
+  the seeded Test Company professional. It also gets hero-background and
+  invitation images. It covers
   both fixtures in one record: husband/wife have emails
   (`dimitris-husband@o-gamos-mas.com` / `maria-wife@o-gamos-mas.com`), so
   it gets the two Couple-role logins (same shared
@@ -1236,7 +1266,7 @@ it or just start real from day one.
   "Story tab"/"View page" above for the extra ownership check they layer
   on top. All three also have a **public**, unauthenticated counterpart
   under `/api/public/celebration/[guid]/...` — see `PUBLIC-API.md`.
-- `src/assets/seed/` holds source assets read only by `lib/seed.ts` at
+- `src/assets/seed/` holds source assets read only by `lib/seed/` at
   seed time (resolved via `path.join(process.cwd(), "assets", ...)`). It
   is **not** a runtime uploads location and isn't served to the browser.
 

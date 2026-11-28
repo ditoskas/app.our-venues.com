@@ -1,133 +1,18 @@
-import path from "node:path";
-import { ObjectId } from "mongodb";
-import {
-  ensureUserIndexes,
-  createUser,
-  getUserByUsername,
-  updateUser,
-  PROFESSIONAL_USER_PASSWORD,
-} from "./users";
-import {
-  createProfessional,
-  listProfessionals,
-  setProfessionalLogo,
-} from "./professionals";
-import {
-  saveProfessionalLogoFromPath,
-  saveTimelineImageFromPath,
-  saveLiveEventImageFromPath,
-} from "./uploads";
-import {
-  createSubscriptionPackage,
-  getSubscriptionPackageByName,
-} from "./subscriptionPackages";
-import {
-  addEventItem,
-  addGuestItem,
-  addLiveEventItem,
-  addTimelineItem,
-  createCelebration,
-  ensureCelebrationIndexes,
-  getCelebrationById,
-  listCelebrations,
-  updateCelebrationInfo,
-  updateCelebrationStory,
-  type CelebrationType,
-  type EventItem,
-  type GuestItem,
-  type LocalizedText,
-} from "./celebrations";
-import { logAction } from "./logActions";
-import { routing, type AppLocale } from "@/i18n/routing";
+import { routing } from "@/i18n/routing";
+import { SEED_ASSETS } from "../../assets";
+import type { CelebrationSeed } from "../../types";
 
-const ROOT_SEED = {
-  displayName: "Dimitris Toskas",
-  username: "ditoskas@gmail.com",
-  password: "2521020995",
-  role: "Root" as const,
-  defaultLocale: "el" as const,
-};
-
-const TEST_PROFESSIONAL_SEED = {
-  companyName: "Test Company",
-  contactPerson: "Test Person",
-  phone: "0123456789",
-  mobile: "9876543210",
-  email: "test@o-gamos-mas.com",
-  plan: "Free" as const,
-};
-
-const TEST_PROFESSIONAL_LOGO = path.join(
-  process.cwd(),
-  "assets",
-  "seed",
-  "test-company-logo.png"
-);
-
-const SEED_TIMELINE_IMAGES_DIR = path.join(process.cwd(), "assets", "seed", "timeline");
-
-interface CelebrationSeed {
-  title: string;
-  type: CelebrationType;
-  husband: { firstName: string; lastName: string; email?: string; mobile?: string };
-  wife: { firstName: string; lastName: string; email?: string; mobile?: string };
-  info?: {
-    celebrationDate?: Date;
-    headline?: LocalizedText;
-    quote?: LocalizedText;
-    countdownParagraph?: LocalizedText;
-    activeLanguages?: AppLocale[];
-    maxGuestsPerInvitation?: number;
-  };
-  story?: {
-    storyTitle?: LocalizedText;
-    storySubtitle?: LocalizedText;
-    storyParagraph?: LocalizedText;
-  };
-  timeline?: {
-    title: LocalizedText;
-    description?: LocalizedText;
-    date?: Date;
-    imageSourcePath?: string;
-  }[];
-  events?: {
-    title: LocalizedText;
-    description?: LocalizedText;
-    area?: string;
-    date?: Date;
-    city?: string;
-    address?: string;
-    postCode?: string;
-    country?: string;
-    mapLat?: number;
-    mapLng?: number;
-  }[];
-  guests?: {
-    name: string;
-    phone?: string;
-    email?: string;
-    expectedAttendees?: number;
-    confirmedAttendees?: number;
-    confirmationDate?: Date;
-    deniedDate?: Date;
-  }[];
-  // `eventIndex`/`guestIndex` are positions into the `events`/`guests`
-  // arrays above — resolved to the actual generated EventItem/GuestItem
-  // ids after those are inserted (see seedCelebration()), since a
-  // LiveEventItem references them by id, not by array position.
-  liveEvents?: {
-    eventIndex: number;
-    guestIndex: number;
-    title: string;
-    description?: string;
-    uploadedAt: Date;
-    imageSourcePath: string;
-  }[];
-}
-
-const TEST_CELEBRATION_SEED: CelebrationSeed = {
+// The showcase celebration: every tab fully populated (info, story +
+// timeline, events with map points, guests in every RSVP state, live-event
+// photos, hero + invitation images) and the only one whose spouses get
+// Couple logins. Content comes from the wedding-planner template the user
+// supplied (its STORY / EVENTS + LOCATIONS data), translated to el/en/ru.
+export const WEDDING_DIMITRIS_MARIA: CelebrationSeed = {
   title: "Dimitris & Maria Marriage",
   type: "Marriage",
+  createCoupleLogins: true,
+  heroBackgroundSourcePath: SEED_ASSETS.story3,
+  invitationSourcePath: SEED_ASSETS.story1,
   husband: {
     firstName: "Dimitris",
     lastName: "Toskas",
@@ -159,6 +44,11 @@ const TEST_CELEBRATION_SEED: CelebrationSeed = {
     },
     activeLanguages: [...routing.locales],
     maxGuestsPerInvitation: 5,
+    showMaxGuests: false,
+    showSeating: true,
+    showLive: true,
+    showReservation: true,
+    isSitePublic: false,
   },
   story: {
     storyTitle: {
@@ -190,7 +80,7 @@ const TEST_CELEBRATION_SEED: CelebrationSeed = {
         ru: "Мы неожиданно познакомились в уютном маленьком книжном магазине на площади Синьории во Флоренции. Мы оба потянулись за последним экземпляром старого тосканского травелога, что положило начало трёхчасовой беседе за эспрессо.",
       },
       date: new Date(Date.UTC(2019, 0, 1)),
-      imageSourcePath: path.join(SEED_TIMELINE_IMAGES_DIR, "story-1.jpg"),
+      imageSourcePath: SEED_ASSETS.story1,
     },
     {
       title: {
@@ -204,7 +94,7 @@ const TEST_CELEBRATION_SEED: CelebrationSeed = {
         ru: "От походов по золотистым холмам Валь-д'Орча до приготовления домашней тальони со свежими летними трюфелями в нашей крошечной квартире — мы поняли, что наши жизни идеально сочетаются друг с другом, как старая песня о любви.",
       },
       date: new Date(Date.UTC(2021, 0, 1)),
-      imageSourcePath: path.join(SEED_TIMELINE_IMAGES_DIR, "story-2.jpg"),
+      imageSourcePath: SEED_ASSETS.story2,
     },
     {
       title: {
@@ -218,7 +108,7 @@ const TEST_CELEBRATION_SEED: CelebrationSeed = {
         ru: "Во время позднего пикника на закате в оливковой роще недалеко от Сан-Джиминьяно Маттео сыграл мелодию на акустической гитаре, встал на колено среди белого клевера и попросил Елену провести с ним всю жизнь. Она заплакала и сказала «Да!»",
       },
       date: new Date(Date.UTC(2024, 0, 1)),
-      imageSourcePath: path.join(SEED_TIMELINE_IMAGES_DIR, "story-3.jpg"),
+      imageSourcePath: SEED_ASSETS.story3,
     },
   ],
   // Events + their venues, taken from the same wedding-planner template as
@@ -350,7 +240,7 @@ const TEST_CELEBRATION_SEED: CelebrationSeed = {
   // different seeded guest (index into `guests` above) — exercises both
   // the "different events" and "different uploader" cases with one
   // fixture each. Reuses the same story-*.jpg placeholders as the
-  // Story timeline (see SEED_TIMELINE_IMAGES_DIR) since there are no
+  // Story timeline (see SEED_ASSETS) since there are no
   // dedicated live-event seed images.
   liveEvents: [
     {
@@ -359,7 +249,7 @@ const TEST_CELEBRATION_SEED: CelebrationSeed = {
       title: "The Vows",
       description: "Right after they exchanged rings — the whole church went quiet.",
       uploadedAt: new Date(Date.UTC(2026, 8, 12, 16, 45)),
-      imageSourcePath: path.join(SEED_TIMELINE_IMAGES_DIR, "story-1.jpg"),
+      imageSourcePath: SEED_ASSETS.story1,
     },
     {
       eventIndex: 2, // Grand Banquet Reception & Ballroom Ball
@@ -367,328 +257,7 @@ const TEST_CELEBRATION_SEED: CelebrationSeed = {
       title: "First Dance",
       description: "Everyone rushed the dance floor the moment the band started playing.",
       uploadedAt: new Date(Date.UTC(2026, 8, 12, 21, 30)),
-      imageSourcePath: path.join(SEED_TIMELINE_IMAGES_DIR, "story-2.jpg"),
+      imageSourcePath: SEED_ASSETS.story2,
     },
   ],
 };
-
-const SUBSCRIPTION_PACKAGE_SEEDS = [
-  {
-    name: "Free",
-    description: "Free subscription",
-    maxUsers: 1,
-    maxBronzeCelebrations: 5,
-    maxSilverCelebrations: 3,
-    maxGoldCelebrations: 2,
-  },
-  {
-    name: "Basic",
-    description: "Basic Subscription",
-    maxUsers: 2,
-    maxBronzeCelebrations: 30,
-    maxSilverCelebrations: 15,
-    maxGoldCelebrations: 5,
-  },
-];
-
-async function seedRootUser(): Promise<void> {
-  const existing = await getUserByUsername(ROOT_SEED.username);
-  if (existing) return;
-
-  const user = await createUser(ROOT_SEED);
-  await logAction({
-    userId: user._id.toString(),
-    type: "info",
-    category: "Security",
-    message: `Seeded root user "${user.username}"`,
-    dataTo: { username: user.username, role: user.role },
-  });
-}
-
-// Returns the seeded (or already-existing) Test Company professional's id,
-// so seedCelebration() can link to it without a second lookup.
-async function seedTestProfessional(): Promise<string> {
-  const existing = await listProfessionals();
-  const existingMatch = existing.find(
-    (p) => p.companyName === TEST_PROFESSIONAL_SEED.companyName
-  );
-  if (existingMatch) {
-    return existingMatch._id.toString();
-  }
-
-  const professional = await createProfessional(TEST_PROFESSIONAL_SEED);
-  const filename = await saveProfessionalLogoFromPath(
-    professional._id.toString(),
-    TEST_PROFESSIONAL_LOGO
-  );
-  await setProfessionalLogo(professional._id.toString(), filename);
-
-  await logAction({
-    userId: "system",
-    type: "info",
-    category: "Professionals",
-    message: `Seeded professional "${professional.companyName}"`,
-    dataTo: { ...TEST_PROFESSIONAL_SEED, logoFilename: filename },
-  });
-
-  const existingUser = await getUserByUsername(TEST_PROFESSIONAL_SEED.email);
-  if (!existingUser) {
-    const user = await createUser({
-      displayName: TEST_PROFESSIONAL_SEED.companyName,
-      username: TEST_PROFESSIONAL_SEED.email,
-      password: PROFESSIONAL_USER_PASSWORD,
-      role: "Professional",
-      professionalId: professional._id.toString(),
-      defaultLocale: routing.defaultLocale,
-    });
-    await logAction({
-      userId: "system",
-      type: "info",
-      category: "Security",
-      message: `Seeded user account for professional "${professional.companyName}"`,
-      dataTo: { username: user.username, role: user.role },
-    });
-  }
-
-  return professional._id.toString();
-}
-
-async function seedSpouseUser(
-  coupleId: string,
-  spouse: { firstName: string; lastName: string; email?: string }
-): Promise<void> {
-  if (!spouse.email) return;
-
-  const existing = await getUserByUsername(spouse.email);
-  if (existing) {
-    // Repair a dangling link (e.g. the celebration was deleted and re-seeded,
-    // so the user still points at the old _id). A Couple user linked to a
-    // celebration that still exists is left alone — never steal a valid link.
-    if (existing.role !== "Couple" || existing.coupleId === coupleId) return;
-    const linked =
-      existing.coupleId && ObjectId.isValid(existing.coupleId)
-        ? await getCelebrationById(existing.coupleId)
-        : null;
-    if (linked) return;
-
-    await updateUser(existing._id.toString(), {
-      displayName: existing.displayName,
-      username: existing.username,
-      role: "Couple",
-      coupleId,
-      defaultLocale: existing.defaultLocale ?? routing.defaultLocale,
-    });
-    await logAction({
-      userId: "system",
-      type: "warning",
-      category: "Security",
-      message: `Re-linked seeded user "${existing.username}" to its celebration (old link was dangling)`,
-      dataFrom: { coupleId: existing.coupleId },
-      dataTo: { coupleId },
-    });
-    return;
-  }
-
-  const user = await createUser({
-    displayName: `${spouse.firstName} ${spouse.lastName}`,
-    username: spouse.email,
-    password: PROFESSIONAL_USER_PASSWORD,
-    role: "Couple",
-    coupleId,
-    defaultLocale: routing.defaultLocale,
-  });
-  await logAction({
-    userId: "system",
-    type: "info",
-    category: "Security",
-    message: `Seeded user account for "${user.displayName}"`,
-    dataTo: { username: user.username, role: user.role, coupleId },
-  });
-}
-
-async function seedCelebration(professionalId: string, seed: CelebrationSeed): Promise<void> {
-  const existing = await listCelebrations();
-  const match = existing.find((c) => c.title === seed.title);
-  if (match) {
-    // Celebration already seeded — still make sure its spouse logins point at it.
-    const matchId = match._id.toString();
-    await seedSpouseUser(matchId, seed.husband);
-    await seedSpouseUser(matchId, seed.wife);
-    return;
-  }
-
-  const celebration = await createCelebration({
-    title: seed.title,
-    type: seed.type,
-    professionalId,
-    husband: seed.husband,
-    wife: seed.wife,
-  });
-  await logAction({
-    userId: "system",
-    type: "info",
-    category: "Celebrations",
-    message: `Seeded celebration "${celebration.title}"`,
-    dataTo: {
-      title: seed.title,
-      type: seed.type,
-      professionalId,
-      husband: seed.husband,
-      wife: seed.wife,
-    },
-  });
-
-  if (seed.info) {
-    await updateCelebrationInfo(celebration._id.toString(), {
-      title: celebration.title,
-      celebrationDate: seed.info.celebrationDate,
-      headline: seed.info.headline,
-      quote: seed.info.quote,
-      countdownParagraph: seed.info.countdownParagraph,
-      activeLanguages: seed.info.activeLanguages ?? ["el"],
-      maxGuestsPerInvitation: seed.info.maxGuestsPerInvitation,
-      showMaxGuests: false,
-      showSeating: true,
-      showLive: true,
-      showReservation: true,
-      isSitePublic: false,
-    });
-    await logAction({
-      userId: "system",
-      type: "info",
-      category: "Celebrations",
-      message: `Seeded celebration info for "${celebration.title}"`,
-      dataTo: seed.info,
-    });
-  }
-
-  if (seed.story) {
-    await updateCelebrationStory(celebration._id.toString(), seed.story);
-    await logAction({
-      userId: "system",
-      type: "info",
-      category: "Celebrations",
-      message: `Seeded story info for "${celebration.title}"`,
-      dataTo: seed.story,
-    });
-  }
-
-  if (seed.timeline?.length) {
-    for (const item of seed.timeline) {
-      const imageFilename = item.imageSourcePath
-        ? await saveTimelineImageFromPath(
-            professionalId,
-            celebration._id.toString(),
-            item.imageSourcePath
-          )
-        : undefined;
-
-      await addTimelineItem(celebration._id.toString(), {
-        title: item.title,
-        ...(item.description ? { description: item.description } : {}),
-        ...(item.date ? { date: item.date } : {}),
-        ...(imageFilename ? { imageFilename } : {}),
-      });
-    }
-
-    await logAction({
-      userId: "system",
-      type: "info",
-      category: "Celebrations",
-      message: `Seeded ${seed.timeline.length} timeline item(s) for "${celebration.title}"`,
-      dataTo: seed.timeline.map((item) => ({ title: item.title, date: item.date })),
-    });
-  }
-
-  // Captured (not just inserted) so seed.liveEvents below can resolve its
-  // eventIndex/guestIndex into the actual generated ids.
-  const insertedEvents: EventItem[] = [];
-  if (seed.events?.length) {
-    for (const item of seed.events) {
-      insertedEvents.push(await addEventItem(celebration._id.toString(), item));
-    }
-
-    await logAction({
-      userId: "system",
-      type: "info",
-      category: "Celebrations",
-      message: `Seeded ${seed.events.length} event(s) for "${celebration.title}"`,
-      dataTo: seed.events.map((item) => ({ title: item.title, date: item.date })),
-    });
-  }
-
-  const insertedGuests: GuestItem[] = [];
-  if (seed.guests?.length) {
-    for (const item of seed.guests) {
-      insertedGuests.push(await addGuestItem(celebration._id.toString(), item));
-    }
-
-    await logAction({
-      userId: "system",
-      type: "info",
-      category: "Celebrations",
-      message: `Seeded ${seed.guests.length} guest(s) for "${celebration.title}"`,
-      dataTo: seed.guests.map((item) => ({ name: item.name, confirmationDate: item.confirmationDate })),
-    });
-  }
-
-  if (seed.liveEvents?.length) {
-    for (const item of seed.liveEvents) {
-      const event = insertedEvents[item.eventIndex];
-      const guest = insertedGuests[item.guestIndex];
-      if (!event || !guest) continue;
-
-      const imageFilename = await saveLiveEventImageFromPath(
-        professionalId,
-        celebration._id.toString(),
-        item.imageSourcePath
-      );
-
-      await addLiveEventItem(celebration._id.toString(), {
-        eventId: event.id,
-        uploadedByGuestId: guest.id,
-        imageFilename,
-        uploadedAt: item.uploadedAt,
-        title: item.title,
-        ...(item.description ? { description: item.description } : {}),
-      });
-    }
-
-    await logAction({
-      userId: "system",
-      type: "info",
-      category: "Celebrations",
-      message: `Seeded ${seed.liveEvents.length} live event photo(s) for "${celebration.title}"`,
-      dataTo: seed.liveEvents.map((item) => ({ title: item.title, uploadedAt: item.uploadedAt })),
-    });
-  }
-
-  const coupleId = celebration._id.toString();
-  await seedSpouseUser(coupleId, seed.husband);
-  await seedSpouseUser(coupleId, seed.wife);
-}
-
-async function seedSubscriptionPackages(): Promise<void> {
-  for (const seed of SUBSCRIPTION_PACKAGE_SEEDS) {
-    const existing = await getSubscriptionPackageByName(seed.name);
-    if (existing) continue;
-
-    const pkg = await createSubscriptionPackage(seed);
-    await logAction({
-      userId: "system",
-      type: "info",
-      category: "Settings",
-      message: `Seeded subscription package "${pkg.name}"`,
-      dataTo: seed,
-    });
-  }
-}
-
-export async function runSeeders(): Promise<void> {
-  await ensureUserIndexes();
-  await ensureCelebrationIndexes();
-  await seedRootUser();
-  const testProfessionalId = await seedTestProfessional();
-  await seedCelebration(testProfessionalId, TEST_CELEBRATION_SEED);
-  await seedSubscriptionPackages();
-}
