@@ -1,5 +1,5 @@
 {
-  "brand": "O Gamos Mas",
+  "brand": "Our Venues",
   "common": {
     "close": "Закрыть",
     "actions": "Действия",
@@ -18,7 +18,6 @@
     "logout": "Выйти"
   },
   "login": {
-    "subtitle": "Войдите в панель управления O Gamos Mas.",
     "username": "Логин",
     "password": "Пароль",
     "submit": "Войти",
@@ -31,7 +30,7 @@
   "dashboard": {
     "eyebrow": "С возвращением",
     "title": "Панель управления",
-    "subtitle": "Единое место для планирования и организации каждой свадьбы и крещения на O Gamos Mas.",
+    "subtitle": "Единое место для планирования и организации каждой свадьбы и крещения на Our Venues.",
     "sections": {
       "users": { "label": "Пользователи", "description": "Учётные записи ваших пар." },
       "celebrations": { "label": "Торжества", "description": "Активные свадебные и крестильные торжества." },

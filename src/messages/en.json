@@ -1,5 +1,5 @@
 {
-  "brand": "O Gamos Mas",
+  "brand": "Our Venues",
   "common": {
     "close": "Close",
     "actions": "Actions",
@@ -18,7 +18,6 @@
     "logout": "Log out"
   },
   "login": {
-    "subtitle": "Sign in to the O Gamos Mas admin.",
     "username": "Username",
     "password": "Password",
     "submit": "Sign in",
@@ -31,7 +30,7 @@
   "dashboard": {
     "eyebrow": "Welcome back",
     "title": "Dashboard",
-    "subtitle": "A single place to plan and orchestrate every wedding and christening on O Gamos Mas.",
+    "subtitle": "A single place to plan and orchestrate every wedding and christening on Our Venues.",
     "sections": {
       "users": { "label": "Users", "description": "Logins for your couples." },
       "celebrations": { "label": "Celebrations", "description": "Active marriage and christening celebrations." },

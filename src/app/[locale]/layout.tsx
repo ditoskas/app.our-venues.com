@@ -17,9 +17,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "O Gamos Mas | Admin",
+  title: "Our Venues | Admin",
   description:
-    "Admin dashboard for O Gamos Mas — wedding and christening planning.",
+    "Admin dashboard for Our Venues — wedding and christening planning.",
   // Brand-kit favicons, served from public/ at the site root (proxy.ts's
   // matcher skips any path with a file extension, so these aren't
   // locale-redirected).

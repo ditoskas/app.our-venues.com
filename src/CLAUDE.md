@@ -1402,7 +1402,7 @@ per-feature.**
   - Redirecting from a Server Action needs the locale explicitly:
     `redirect({ href, locale: await getLocale() })` (see
     `settings/users/actions.ts`).
-- The `brand` key (`"O Gamos Mas"`) and the `settings.sidebar.logActions`
+- The `brand` key (`"Our Venues"`) and the `settings.sidebar.logActions`
   label (`"LogActions"`) are deliberately **not translated** in any
   locale — they're proper nouns / a literal collection name, not prose.
   Role display labels (`settings.users.roles.*`) *are* translated for
