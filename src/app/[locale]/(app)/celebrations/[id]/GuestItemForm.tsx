@@ -25,6 +25,7 @@ export interface SerializedGuestItem {
   invitedVia?: InviteChannel;
   inviteCount?: number;
   inviteOpenedAt?: string;
+  tableAssignments?: { eventId: string; tableId: string }[];
 }
 
 export default function GuestItemForm({

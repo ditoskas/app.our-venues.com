@@ -1,6 +1,13 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { getActiveLanguages, getCelebrationById, type LocalizedText } from "@/lib/celebrations";
+import {
+  getActiveLanguages,
+  getCelebrationById,
+  getTableReservedSeats,
+  type LocalizedText,
+} from "@/lib/celebrations";
+import type { SeatingEventOption } from "../AssignGuestTableForm";
+import { localizedLabel } from "../localizedText";
 import { ensureInviteTokens } from "@/lib/guestInvites";
 import { publicAppOrigin } from "@/lib/siteConfig";
 import { routing, type AppLocale } from "@/i18n/routing";
@@ -44,7 +51,25 @@ export default async function GuestsTabPage({
     invitedVia: item.invitedVia,
     inviteCount: item.inviteCount,
     inviteOpenedAt: item.inviteOpenedAt?.toISOString(),
+    tableAssignments: item.tableAssignments,
   }));
+
+  // Events with seating and their tables (placeholders excluded), with each
+  // table's reserved seats computed from the guest list.
+  const seatingEvents: SeatingEventOption[] = (celebration.events ?? [])
+    .filter((event) => event.hasSeating)
+    .map((event) => ({
+      id: event.id,
+      title: localizedLabel(event.title),
+      tables: (event.seatingLayout ?? [])
+        .filter((el) => el.type === "table-circle" || el.type === "table-rect")
+        .map((el) => ({
+          id: el.id,
+          code: el.code || "—",
+          maxPeople: el.maxPeople,
+          reserved: getTableReservedSeats(guests, event.id, el.id),
+        })),
+    }));
 
   // The message per language: the celebration's own template where set,
   // otherwise the default for its type. t.raw() keeps the {name}…
@@ -80,7 +105,7 @@ export default async function GuestsTabPage({
         initialValue={templates as LocalizedText}
         activeLanguages={getActiveLanguages(celebration)}
       />
-      <GuestsManager celebrationId={id} items={items} invite={invite} />
+      <GuestsManager celebrationId={id} items={items} invite={invite} seatingEvents={seatingEvents} />
     </div>
   );
 }

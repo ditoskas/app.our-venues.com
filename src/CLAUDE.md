@@ -1447,6 +1447,53 @@ per-feature.**
   from `messages/en.json` (the canonical shape) — if you restructure
   messages, `en.json` is the source of truth other locales must match.
 
+## Seating (layout designer + table assignments)
+
+Recovered from uncommitted work in the old location (backup branch
+`recovered/thinkpositive-2026-08-26`) and ported with atomic writes.
+
+- **Per event**: `EventItem.hasSeating` ("Has seating" checkbox in the event
+  form) opts it in; `EventItem.seatingLayout: SeatingLayoutElement[]` is its
+  floor plan — round (`table-circle`) / rectangular (`table-rect`) tables with
+  `code` + `maxPeople`, or a `placeholder` with a `label` (Dance Floor, Music
+  Band…), positioned in pixels on a 1400×900 canvas. Not a scale drawing.
+- **Designer**: Events tab → armchair icon (only when `hasSeating`) →
+  `celebrations/[id]/events/[eventId]/seating-layout/`
+  (`EventSeatingLayoutEditor.tsx`: add/drag/resize/edit/delete, Save sends the
+  whole array to `updateEventSeatingLayoutAction`, which **validates it
+  server-side** (`sanitizeLayout`: types, bounded numbers, lengths, ≤ 300
+  elements) and writes it atomically (`updateEventSeatingLayout`). The page
+  shows each table's reserved seats next to its capacity.
+- **Assignments**: `GuestItem.tableAssignments: {eventId, tableId}[]` (one
+  per seating event). Guests tab → armchair → `AssignGuestTableForm`
+  (`updateGuestTableAssignmentsAction`): only real tables still on the
+  layout are accepted; a guest who declined can't get a table. Reserved seats
+  are derived from the guest list (`getTableReservedSeats`, party size =
+  confirmed ?? expected ?? 1), never stored. The guest form and the RSVP route
+  keep `tableAssignments` (in `GUEST_INVITE_FIELDS`), and the event form keeps
+  `seatingLayout` (`updateEventItem`).
+- **Public**: the celebration route exposes each event's `hasSeating` +
+  `seatingLayout` (geometry only); `GET /api/public/celebration/{guid}/seating`
+  adds guest names per table (public sites only) and, with a guest token, the
+  guest's own table. The frontend's Reception Seating page (behind
+  `showSeating`) uses both.
+
+## Data migrations
+
+`lib/migrations/` — ordered, run-once changes to **existing** data (the
+seeder only creates what's missing). `runMigrations()` runs at every boot
+right after the seeders (`instrumentation.ts`); each migration is claimed in
+the `Migrations` collection before running (insert-first, so two processes
+can't both run it), marked `done` after, and released on failure so it's
+retried next boot. To add one: a `lib/migrations/<YYYYMMDD>-<NN>-<slug>.ts`
+exporting a `Migration`, appended to `MIGRATIONS` (never reorder/rename
+applied ones). Match records by natural keys and skip quietly when they're
+missing — production data may differ from the seed. Current ones:
+`…-01-seed-guest-phones` (phones for the demo guests that had none),
+`…-02-test-guest-dimitris` (a reachable test guest on Nikos & Eleni),
+`…-03-seating-demo` (reception floor plans + seated guests on the demo
+weddings; never overwrites an existing layout/assignment).
+
 ## Guest invitations
 
 The couple or the professional send each guest a **personal invitation**

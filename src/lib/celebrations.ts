@@ -47,6 +47,25 @@ export interface TimelineItem {
   imageFilename?: string;
 }
 
+// One shape/piece in an event's seating layout (EventItem.seatingLayout): a
+// round or rectangular table (has `code` + `maxPeople`, no `label`) or a
+// free-standing placeholder like "Music Band"/"Dance Floor" (has `label`, no
+// `code`/`maxPeople`). x/y/width/height are pixels on the layout editor's
+// canvas, top-left origin — a rough visual floor plan, not a scale drawing.
+export type SeatingElementType = "table-circle" | "table-rect" | "placeholder";
+
+export interface SeatingLayoutElement {
+  id: string;
+  type: SeatingElementType;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  code?: string;
+  maxPeople?: number;
+  label?: string;
+}
+
 export interface EventItem {
   id: string;
   title: LocalizedText;
@@ -59,9 +78,24 @@ export interface EventItem {
   country?: string;
   mapLat?: number;
   mapLng?: number;
+  // Opts the event into seating: the Events tab offers "Configure layout"
+  // (the table designer) and the public Reception Seating page lists it.
+  // Unset = false.
+  hasSeating?: boolean;
+  // Saved only from the layout editor (updateEventSeatingLayout); the event
+  // form keeps it untouched (updateEventItem preserves it).
+  seatingLayout?: SeatingLayoutElement[];
 }
 
 export type InviteChannel = "whatsapp" | "viber" | "share";
+
+// A guest's table for one event (at most one per eventId). tableId points at
+// a SeatingLayoutElement.id of that event; a stale reference (table deleted)
+// simply stops resolving to a table.
+export interface GuestTableAssignment {
+  eventId: string;
+  tableId: string;
+}
 
 export interface GuestItem {
   id: string;
@@ -84,15 +118,34 @@ export interface GuestItem {
   invitedVia?: InviteChannel;
   inviteCount?: number; // how many times it was sent (resends included)
   inviteOpenedAt?: Date; // first time the guest opened their personal link
+  // Seating (Guests tab → "Assign table"); preserved by updateGuestItem().
+  tableAssignments?: GuestTableAssignment[];
 }
 
-// Fields of a GuestItem that only the invitation flow writes.
+// Seats a guest's party takes at a table: confirmed attendees once they've
+// RSVP'd, else expected attendees, else 1.
+export function guestSeatCount(guest: GuestItem): number {
+  return guest.confirmedAttendees ?? guest.expectedAttendees ?? 1;
+}
+
+// Seats reserved at one table for one event — derived from the guests'
+// assignments, never stored, so it can't drift from the guest list.
+export function getTableReservedSeats(guests: GuestItem[], eventId: string, tableId: string): number {
+  return guests
+    .filter((g) => g.tableAssignments?.some((a) => a.eventId === eventId && a.tableId === tableId))
+    .reduce((sum, g) => sum + guestSeatCount(g), 0);
+}
+
+// Fields of a GuestItem that the guest form and the RSVP route never carry
+// (written only by the invitation flow and the seating assignment), so
+// updateGuestItem() must keep them.
 export const GUEST_INVITE_FIELDS = [
   "inviteToken",
   "invitedAt",
   "invitedVia",
   "inviteCount",
   "inviteOpenedAt",
+  "tableAssignments",
 ] as const;
 
 // A guest-submitted photo from the "Live Events" tab — `eventId` points at
@@ -377,10 +430,48 @@ export async function updateEventItem(
   item: Omit<EventItem, "id">
 ): Promise<void> {
   const celebration = await getCelebrationById(id);
+  // The event form doesn't carry the seating layout — keep it.
   const events = (celebration?.events ?? []).map((existing) =>
-    existing.id === itemId ? { id: itemId, ...item } : existing
+    existing.id === itemId
+      ? {
+          ...(existing.seatingLayout ? { seatingLayout: existing.seatingLayout } : {}),
+          ...item,
+          id: itemId,
+        }
+      : existing
   );
   await setCelebrationEvents(id, events);
+}
+
+// Saves an event's whole seating layout (from the layout editor). Atomic,
+// touches only that event's seatingLayout.
+export async function updateEventSeatingLayout(
+  id: string,
+  eventId: string,
+  elements: SeatingLayoutElement[]
+): Promise<void> {
+  const col = await celebrationsCollection();
+  await col.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { "events.$[e].seatingLayout": elements } },
+    { arrayFilters: [{ "e.id": eventId }] }
+  );
+}
+
+// Replaces one guest's table assignments. Atomic, touches only that field.
+export async function updateGuestTableAssignments(
+  id: string,
+  guestId: string,
+  assignments: GuestTableAssignment[]
+): Promise<void> {
+  const col = await celebrationsCollection();
+  await col.updateOne(
+    { _id: new ObjectId(id) },
+    assignments.length
+      ? { $set: { "guests.$[g].tableAssignments": assignments } }
+      : { $unset: { "guests.$[g].tableAssignments": "" } },
+    { arrayFilters: [{ "g.id": guestId }] }
+  );
 }
 
 export async function deleteEventItem(id: string, itemId: string): Promise<void> {

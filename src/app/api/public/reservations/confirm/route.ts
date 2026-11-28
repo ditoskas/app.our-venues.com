@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCelebrationByGuid, updateGuestItem, type GuestItem } from "@/lib/celebrations";
 import { logAction } from "@/lib/logActions";
+import { samePhone } from "@/lib/invitationMessage";
 
 // Public, unauthenticated — see PUBLIC-API.md. GET (not POST) is
 // deliberate: this is meant to work as a one-click link in an RSVP email/
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
 
   const guest = (celebration.guests ?? []).find(
     (g) =>
-      (phone && g.phone === phone) || (email && g.email?.toLowerCase() === email.toLowerCase())
+      (phone && samePhone(g.phone, phone)) || (email && g.email?.toLowerCase() === email.toLowerCase())
   );
   if (!guest) {
     return NextResponse.json({ error: "Guest not found" }, { status: 404 });

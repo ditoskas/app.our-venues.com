@@ -26,6 +26,7 @@ export default async function EventsTabPage({
     country: item.country,
     mapLat: item.mapLat,
     mapLng: item.mapLng,
+    hasSeating: item.hasSeating ?? false,
   }));
 
   return (

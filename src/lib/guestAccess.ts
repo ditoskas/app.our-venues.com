@@ -11,6 +11,7 @@ import { createHash, createHmac, randomInt, timingSafeEqual } from "node:crypto"
 import { Collection, ObjectId } from "mongodb";
 import { getDb } from "./mongodb";
 import type { Celebration, GuestItem } from "./celebrations";
+import { samePhone } from "./invitationMessage";
 
 export const GUEST_ACCESS_CODES_COLLECTION = "GuestAccessCodes";
 const CODE_TTL_MS = 10 * 60 * 1000;
@@ -56,8 +57,8 @@ export function isGuestAccessOpen(celebration: Pick<Celebration, "celebrationDat
   return !!expiry && now < expiry;
 }
 
-// Phone: exact string match (no format normalization — same rule as the
-// RSVP endpoint). Email: case-insensitive.
+// Phone: same number in any common format (samePhone — "+30…", "0030…",
+// plain Greek 10 digits). Email: case-insensitive.
 export function findGuestByContact(
   celebration: Pick<Celebration, "guests">,
   rawContact: string
@@ -67,7 +68,7 @@ export function findGuestByContact(
   const lower = contact.toLowerCase();
   return (
     (celebration.guests ?? []).find(
-      (g) => (g.phone && g.phone === contact) || (g.email && g.email.toLowerCase() === lower)
+      (g) => samePhone(g.phone, contact) || (g.email && g.email.toLowerCase() === lower)
     ) ?? null
   );
 }

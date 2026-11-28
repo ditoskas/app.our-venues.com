@@ -53,6 +53,11 @@ export async function GET(
     country: item.country ?? null,
     mapLat: item.mapLat ?? null,
     mapLng: item.mapLng ?? null,
+    // Reception Seating page: whether this event has seating, and its floor
+    // plan (positions/sizes/table codes/capacity only — no guest names; those
+    // come from /seating, which requires a public site).
+    hasSeating: item.hasSeating ?? false,
+    seatingLayout: item.seatingLayout ?? [],
   }));
 
   return NextResponse.json({

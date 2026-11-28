@@ -9,5 +9,15 @@ export async function register() {
       // should still work.
       console.error("Seeding failed at startup:", err);
     }
+
+    // Run-once data migrations (lib/migrations), after seeding so they also
+    // apply to a freshly seeded database. Same rule: never crash the app; a
+    // failed migration is retried on the next boot.
+    const { runMigrations } = await import("./lib/migrations");
+    try {
+      await runMigrations();
+    } catch (err) {
+      console.error("Migrations failed at startup:", err);
+    }
   }
 }

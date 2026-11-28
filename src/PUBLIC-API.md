@@ -284,6 +284,29 @@ celebration subdomain) carries Open Graph tags — `og:title` (the couple's
 names), `og:description` (date · headline), `og:image` (the invitation
 image, else the hero background) — so WhatsApp/Viber show a card.
 
+## `GET /api/public/celebration/{guid}/seating`
+
+Reception Seating. Who sits at which table, for the "click a table, see
+who's there" panel. **Requires `isSitePublic`** (it returns guest names —
+unlike the floor plan itself, which is on the main celebration route as each
+event's `hasSeating` + `seatingLayout`). `404` otherwise.
+
+Optional `Authorization: Bearer <guest token>` (from `access/confirm` or
+`access/invite`) adds that guest's own table(s) as `myAssignments`.
+
+```json
+{
+  "tables": [
+    { "eventId": "…", "tableId": "…", "guests": [{ "name": "Andreas Michailidis", "attendees": 2 }] }
+  ],
+  "myAssignments": [{ "eventId": "…", "tableId": "…" }]
+}
+```
+
+Only tables with someone assigned are listed. `attendees` is the party size
+(confirmed, else expected, else 1). `tableId` is a `seatingLayout` element id
+of that event; resolve its `code`/`maxPeople` from the celebration route.
+
 ## `GET /api/public/celebration/{guid}/live-events`
 
 The celebration's Live Events photo feed (frontend "Happening Now"), newest
