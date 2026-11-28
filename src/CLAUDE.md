@@ -141,7 +141,8 @@ src/
           actions.ts              Server actions: create/update/delete
                                    (each re-checks role — see "Authentication")
         profile/
-          page.tsx, actions.ts, ProfileForm.tsx, ChangePasswordForm.tsx
+          page.tsx, actions.ts, ProfileForm.tsx, ChangePasswordForm.tsx,
+          ActAsForm.tsx (Root-only "Act as" section — see "Authentication")
         settings/
           layout.tsx         Two-column shell: <SettingsSidebar /> + content
           page.tsx            General settings (placeholder)
@@ -206,6 +207,8 @@ src/
     Navbar.tsx             Top nav: brand logo (assets/brand/logo-vertical.png
                              via next/image), active-link highlighting,
                              <UserMenu />
+    ActingAsBanner.tsx      Server: top strip shown while Root is "acting as"
+                             another user, with a Stop button
     UserMenu.tsx             Display-name dropdown (<details>-based, no client
                               state needed): Profile link + Logout button
     SettingsSidebar.tsx     Settings sub-nav (General / Users /
@@ -1224,7 +1227,7 @@ itself, and its Server Actions must independently re-check the role too.
 
 - **Session mechanism**: a signed, stateless cookie (`og_session`, 7-day
   expiry) — not a DB-backed session table. The token is
-  `base64url(JSON{sub,exp}).base64url(HMAC-SHA256 signature)`, signed with
+  `base64url(JSON{sub,act?,exp}).base64url(HMAC-SHA256 signature)`, signed with
   the `SESSION_SECRET` env var. Verification uses Web Crypto
   (`crypto.subtle`) and manual base64url helpers instead of
   `node:crypto`/`Buffer`, specifically so it works unmodified in both the
@@ -1267,6 +1270,23 @@ itself, and its Server Actions must independently re-check the role too.
   `settings/users/actions.ts` for the pattern). The `"system"` fallback
   only matters for actions truly not tied to a request (e.g. the boot-time
   seeder).
+- **"Act as" (Root-only impersonation)**: the session token may carry an
+  optional `act` field (target user id) next to `sub`. `resolveSession()`
+  in `auth.ts` (React-`cache`d per request) honors it **only** while the
+  real `sub` user is still `Root` and the target exists and is not `Root`
+  — re-checked every request, so a forged/stale `act` is just ignored.
+  While active, `getCurrentUser()`/`getCurrentUserId()` return the
+  **target** — every page, action, role gate and ownership filter behaves
+  exactly as if the target had logged in; never special-case Root there.
+  Only the feature itself reads the real user (`getRealUser()` /
+  `resolveSession().realUser`). Started/stopped from the Profile page's
+  "Act as" section (`startActingAsAction`/`stopActingAsAction` in
+  `profile/actions.ts`, which check the *real* user's role) — `setActingAs()`
+  re-issues the cookie keeping the original `exp`, so it can't extend a
+  session. `ActingAsBanner` (in `(app)/layout.tsx`) shows a Stop button on
+  every page. Audit: `logAction()` automatically adds `actingAsBy` (the
+  real Root user id) to any entry written while acting as someone; the
+  LogActions page shows it under the user column.
 - Env var: `SESSION_SECRET` (see `.env.local.example` — generate with
   `openssl rand -base64 32`; docker-compose uses a fixed dev value).
 

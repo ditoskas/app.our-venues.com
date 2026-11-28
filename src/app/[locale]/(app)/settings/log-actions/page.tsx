@@ -52,7 +52,14 @@ export default async function LogActionsPage() {
                       timeStyle: "short",
                     })}
                   </td>
-                  <td className="px-4 py-3 text-muted">{entry.userId}</td>
+                  <td className="px-4 py-3 text-muted">
+                    {entry.userId}
+                    {entry.actingAsBy && (
+                      <div className="mt-1 text-xs text-accent-dark">
+                        {t("actingAsBy", { userId: entry.actingAsBy })}
+                      </div>
+                    )}
+                  </td>
                   <td className={`px-4 py-3 font-medium ${TYPE_STYLES[entry.type]}`}>
                     {entry.type}
                   </td>

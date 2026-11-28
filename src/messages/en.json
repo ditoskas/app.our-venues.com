@@ -154,6 +154,7 @@
       }
     },
     "logActions": {
+      "actingAsBy": "via Root {userId}",
       "title": "LogActions",
       "description": "Audit trail of actions taken across the admin.",
       "empty": "No actions logged yet.",
@@ -191,6 +192,20 @@
       "currentPasswordIncorrect": "Current password is incorrect.",
       "newPasswordRequired": "New password is required.",
       "passwordsDoNotMatch": "New passwords do not match."
+    },
+    "actAs": {
+      "title": "Act as",
+      "description": "Use the app as another user — with exactly their permissions and data, as if they had logged in themselves. Everything you do is recorded in LogActions under your own account too.",
+      "user": "User",
+      "selectUser": "Select a user…",
+      "start": "Act as this user",
+      "starting": "Switching…",
+      "stop": "Stop acting as",
+      "banner": "You are acting as {name} ({username}) — signed in as {realName}.",
+      "errors": {
+        "notAllowed": "Only the Root user can use “Act as”.",
+        "userRequired": "Please select a valid user."
+      }
     }
   },
   "professionals": {

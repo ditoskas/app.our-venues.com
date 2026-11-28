@@ -6,8 +6,9 @@
 export const SESSION_COOKIE_NAME = "og_session";
 export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
-interface SessionPayload {
-  sub: string; // user id
+export interface SessionPayload {
+  sub: string; // user id (the user who actually logged in)
+  act?: string; // "act as" target user id — Root-only impersonation, see auth.ts
   exp: number; // unix ms
 }
 
@@ -39,10 +40,14 @@ function getSecretKey(): Promise<CryptoKey> {
   );
 }
 
-export async function createSessionToken(userId: string): Promise<string> {
+export async function createSessionToken(
+  userId: string,
+  options: { act?: string; exp?: number } = {}
+): Promise<string> {
   const payload: SessionPayload = {
     sub: userId,
-    exp: Date.now() + SESSION_TTL_SECONDS * 1000,
+    ...(options.act ? { act: options.act } : {}),
+    exp: options.exp ?? Date.now() + SESSION_TTL_SECONDS * 1000,
   };
   const payloadB64 = bytesToBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
   const key = await getSecretKey();
@@ -53,6 +58,13 @@ export async function createSessionToken(userId: string): Promise<string> {
 export async function verifySessionToken(
   token: string | undefined | null
 ): Promise<string | null> {
+  return (await verifySessionPayload(token))?.sub ?? null;
+}
+
+// Must never throw — see CLAUDE.md "Authentication".
+export async function verifySessionPayload(
+  token: string | undefined | null
+): Promise<SessionPayload | null> {
   if (!token) return null;
 
   // Wraps everything: this parses untrusted, possibly-tampered/malformed
@@ -76,7 +88,12 @@ export async function verifySessionToken(
       new TextDecoder().decode(base64UrlToBytes(payloadB64))
     ) as SessionPayload;
     if (typeof payload.exp !== "number" || Date.now() > payload.exp) return null;
-    return payload.sub;
+    if (typeof payload.sub !== "string" || !payload.sub) return null;
+    return {
+      sub: payload.sub,
+      ...(typeof payload.act === "string" && payload.act ? { act: payload.act } : {}),
+      exp: payload.exp,
+    };
   } catch {
     return null;
   }
