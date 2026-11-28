@@ -12,8 +12,10 @@
 //       * "Nikos & Eleni Wedding"      — public site on, no logins
 //       * "Christening of Alexandros"  — the Christening type, no logins
 //   - 2 subscription packages
-// Every non-Root login shares SEED_USER_PASSWORD. The credentials table is
-// printed at the end (outside production) and mirrored in README.md.
+// Every non-Root login shares SEED_USER_PASSWORD; the Root password comes from
+// the SEED_ROOT_PASSWORD env var (never from code — the repo is public).
+// The credentials table is printed at the end (outside production) and
+// mirrored in README.md.
 import { ensureUserIndexes } from "../users";
 import { ensureCelebrationIndexes } from "../celebrations";
 import { PROFESSIONAL_SEED } from "./data/professional";
@@ -35,7 +37,8 @@ export async function runSeeders(): Promise<void> {
   await ensureCelebrationIndexes();
 
   const logins: SeededLogin[] = [];
-  logins.push(await seedRootUser());
+  const root = await seedRootUser();
+  if (root) logins.push(root);
 
   const professionalId = await seedProfessional(PROFESSIONAL_SEED);
   logins.push(

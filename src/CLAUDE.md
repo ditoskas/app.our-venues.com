@@ -540,6 +540,12 @@ keep it in sync when seed data changes.**
   `createCoupleLogins: true` → 2 Couple logins), `weddingNikosEleni.ts`
   (public site on), `christeningAlexandros.ts` (Christening, el+en only);
   2 subscription packages.
+- **The Root password is never in code** (the GitHub repo is public): it
+  comes from the `SEED_ROOT_PASSWORD` env var (root `.env` → docker-compose,
+  or `src/.env.local`), used only when the Root user is first created. Unset
+  → a random one is generated and shown once in the seed table (dev), or
+  Root isn't created at all (production). Never commit a real password to
+  `lib/seed/` or the README.
 - Every non-Root login uses `SEED_USER_PASSWORD` (= `PROFESSIONAL_USER_PASSWORD`).
   `runSeeders()` prints an Email/Password/Role/Name table at the end,
   skipped when `NODE_ENV=production`.

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { ObjectId } from "mongodb";
 import { routing } from "@/i18n/routing";
 import { logAction } from "../../logActions";
@@ -15,24 +16,40 @@ import type { SeededLogin, SpouseSeed } from "../types";
 // the app uses for auto-provisioned Professional/Couple logins.
 export const SEED_USER_PASSWORD = PROFESSIONAL_USER_PASSWORD;
 
-export async function seedRootUser(): Promise<SeededLogin> {
-  const existing = await getUserByUsername(ROOT_SEED.username);
-  if (!existing) {
-    const user = await createUser(ROOT_SEED);
-    await logAction({
-      userId: user._id.toString(),
-      type: "info",
-      category: "Security",
-      message: `Seeded root user "${user.username}"`,
-      dataTo: { username: user.username, role: user.role },
-    });
-  }
-  return {
+export async function seedRootUser(): Promise<SeededLogin | null> {
+  const login = (password: string): SeededLogin => ({
     email: ROOT_SEED.username,
-    password: ROOT_SEED.password,
+    password,
     role: "Root",
     name: ROOT_SEED.displayName,
-  };
+  });
+
+  if (await getUserByUsername(ROOT_SEED.username)) {
+    // Never touch an existing Root user, and never claim to know its password.
+    return login("(existing user — unchanged)");
+  }
+
+  let password = process.env.SEED_ROOT_PASSWORD;
+  if (!password) {
+    if (process.env.NODE_ENV === "production") {
+      console.warn(
+        "SEED_ROOT_PASSWORD is not set — the Root user was NOT created. Set it and restart."
+      );
+      return null;
+    }
+    // Dev convenience: a one-off random password, shown once in the table.
+    password = randomBytes(9).toString("base64url");
+  }
+
+  const user = await createUser({ ...ROOT_SEED, password });
+  await logAction({
+    userId: user._id.toString(),
+    type: "info",
+    category: "Security",
+    message: `Seeded root user "${user.username}"`,
+    dataTo: { username: user.username, role: user.role },
+  });
+  return login(process.env.SEED_ROOT_PASSWORD ? "(from SEED_ROOT_PASSWORD)" : password);
 }
 
 export async function seedProfessionalUser(

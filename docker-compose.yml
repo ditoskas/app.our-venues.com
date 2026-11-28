@@ -67,6 +67,10 @@ services:
       MONGODB_URI: mongodb://admin:password@mongodb:27017/o-gamos-mas?authSource=admin
       MONGODB_DB: o-gamos-mas
       SESSION_SECRET: dev-session-secret-change-me
+      # Root user's password, used only when the seeder first creates it.
+      # Set it in the root .env (see .env.example); if unset, a random one is
+      # generated and printed once in the seed table in the backend log.
+      SEED_ROOT_PASSWORD: ${SEED_ROOT_PASSWORD:-}
       # Uploaded files go to S3. By default this points at the local S3Mock
       # service above; set the S3_* vars in the root .env (see .env.example)
       # to use a real AWS bucket instead.

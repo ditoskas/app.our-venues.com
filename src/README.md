@@ -35,6 +35,8 @@ On every server boot, `lib/seed` (`runSeeders()`) creates whatever is missing; i
 
 Every non-Root user shares the same password. The table is also printed to the server log at the end of seeding (outside production).
 
+The Root password is never stored in the repo. It is read from `SEED_ROOT_PASSWORD` (root `.env` for Docker, `src/.env.local` for local dev) and used only when the Root user is first created. If it's unset outside production, a random password is generated and printed once in the seed table. In production, Root is not created without it.
+
 | Email | Password | Role |
 |---|---|---|
 | ditoskas@gmail.com | `SEED_ROOT_PASSWORD` | Root |
