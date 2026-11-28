@@ -401,7 +401,8 @@
         "mapPoint": "Google Maps Point",
         "createSubmit": "Add event",
         "saveSubmit": "Save changes",
-        "saving": "Saving…"
+        "saving": "Saving…",
+        "hasSeating": "Has seating (enables the table layout designer)"
       },
       "map": {
         "noKey": "Google Maps isn't configured (missing API key).",
@@ -415,6 +416,25 @@
       "cancel": "Cancel",
       "errors": {
         "titleRequired": "Title is required."
+      },
+      "configureLayout": "Configure Layout",
+      "seatingLayout": {
+        "pageTitle": "Seating Layout",
+        "back": "Back to Events",
+        "addRoundTable": "Add Round Table",
+        "addRectTable": "Add Rectangular Table",
+        "addPlaceholder": "Add Placeholder",
+        "deleteElement": "Delete",
+        "save": "Save Layout",
+        "saving": "Saving…",
+        "saved": "Layout saved.",
+        "empty": "Add a round table, rectangular table, or placeholder to start designing the layout.",
+        "properties": "Properties",
+        "noSelection": "Select an element to edit its details.",
+        "code": "Code",
+        "maxPeople": "Max People",
+        "reserved": "Reserved",
+        "label": "Label"
       }
     },
     "liveEvents": {
@@ -444,7 +464,8 @@
         "communication": "Communication",
         "expectedAttendees": "Expected Attendees",
         "confirmedAttendees": "Confirmed Attendees",
-        "confirmationDate": "Confirmation Date"
+        "confirmationDate": "Confirmation Date",
+        "tables": "Tables"
       },
       "form": {
         "name": "Guest Name",
@@ -466,7 +487,18 @@
       "errors": {
         "nameRequired": "Guest name is required.",
         "emailTaken": "Another guest on this celebration already has this email.",
-        "phoneTaken": "Another guest on this celebration already has this phone number."
+        "phoneTaken": "Another guest on this celebration already has this phone number.",
+        "denied": "This guest has denied attendance and can't be assigned to a table."
+      },
+      "assignTable": {
+        "action": "Assign to table",
+        "deniedTooltip": "Denied guests can't be assigned to a table.",
+        "title": "Assign to Table — {name}",
+        "noTable": "— Not assigned —",
+        "tableOption": "{code} ({reserved}/{max} seats)",
+        "tableOptionNoMax": "{code} ({reserved} seats)",
+        "save": "Save assignments",
+        "saving": "Saving…"
       }
     },
     "edit": "Edit",

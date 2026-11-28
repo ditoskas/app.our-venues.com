@@ -45,6 +45,17 @@ export function normalizePhone(raw: string | undefined, defaultCountryCode = "30
   return /^\d{8,15}$/.test(digits) ? digits : null;
 }
 
+// Two phone numbers are the same person when they're identical as typed, or
+// normalize to the same international number ("+30 694 411 1222",
+// "00306944111222" and "6944111222" all match). Used wherever a guest is
+// looked up by phone (RSVP, sign-in, duplicate check).
+export function samePhone(a: string | undefined, b: string | undefined): boolean {
+  if (!a || !b) return false;
+  if (a.trim() === b.trim()) return true;
+  const na = normalizePhone(a);
+  return !!na && na === normalizePhone(b);
+}
+
 // Opens a WhatsApp chat with that number, message pre-filled (phone app,
 // WhatsApp Web or desktop).
 export function whatsappUrl(phoneDigits: string, text: string): string {

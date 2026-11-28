@@ -2,16 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations, useFormatter } from "next-intl";
-import { Plus, Pencil, Phone, Mail } from "lucide-react";
+import { Plus, Pencil, Phone, Mail, Armchair } from "lucide-react";
 import FormDialog from "@/components/FormDialog";
 import GuestItemForm, { type SerializedGuestItem } from "./GuestItemForm";
 import DeleteGuestItemButton from "./DeleteGuestItemButton";
 import GuestInviteActions from "./GuestInviteActions";
+import AssignGuestTableForm, { type SeatingEventOption } from "./AssignGuestTableForm";
 import type { AppLocale } from "@/i18n/routing";
 import {
   createGuestItemAction,
   updateGuestItemAction,
   deleteGuestItemAction,
+  updateGuestTableAssignmentsAction,
 } from "./actions";
 
 // What the Guests tab needs to build each guest's personal message
@@ -28,17 +30,23 @@ export interface InviteContext {
 type DialogState =
   | { mode: "create" }
   | { mode: "edit"; item: SerializedGuestItem }
+  | { mode: "assignTable"; item: SerializedGuestItem }
   | null;
 
 export default function GuestsManager({
   celebrationId,
   items,
   invite,
+  seatingEvents,
 }: {
   celebrationId: string;
   items: SerializedGuestItem[];
   invite: InviteContext;
+  // Events with seating and their tables (guests/page.tsx). Empty → no
+  // Tables column and no "Assign table" action.
+  seatingEvents: SeatingEventOption[];
 }) {
+  const hasSeatingEvents = seatingEvents.length > 0;
   const t = useTranslations("celebrations.guests");
   const tInv = useTranslations("celebrations.invitations");
   const tCommon = useTranslations("common");
@@ -106,6 +114,7 @@ export default function GuestsManager({
                 <th className="px-4 py-3">{t("table.expectedAttendees")}</th>
                 <th className="px-4 py-3">{t("table.confirmedAttendees")}</th>
                 <th className="px-4 py-3">{t("table.confirmationDate")}</th>
+                {hasSeatingEvents && <th className="px-4 py-3">{t("table.tables")}</th>}
                 <th className="px-4 py-3">{tInv("column")}</th>
                 <th className="px-4 py-3 text-right">{tCommon("actions")}</th>
               </tr>
@@ -168,6 +177,25 @@ export default function GuestsManager({
                       <span className="text-muted">—</span>
                     )}
                   </td>
+                  {hasSeatingEvents && (
+                    <td className="px-4 py-3">
+                      {item.tableAssignments?.length ? (
+                        <div className="flex flex-col gap-1 text-xs text-muted">
+                          {item.tableAssignments.map((a) => {
+                            const event = seatingEvents.find((e) => e.id === a.eventId);
+                            const table = event?.tables.find((tb) => tb.id === a.tableId);
+                            return (
+                              <span key={`${a.eventId}-${a.tableId}`}>
+                                {event?.title ?? "?"}: {table?.code ?? "?"}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-xs whitespace-nowrap">
                     {item.invitedAt ? (
                       <div className="flex flex-col gap-0.5">
@@ -199,6 +227,18 @@ export default function GuestsManager({
                         invitationImage={invitationImage}
                       />
                       <span className="h-4 w-px bg-border" aria-hidden />
+                      {hasSeatingEvents && (
+                        <button
+                          type="button"
+                          onClick={() => setDialog({ mode: "assignTable", item })}
+                          disabled={!!item.deniedDate}
+                          title={item.deniedDate ? t("assignTable.deniedTooltip") : t("assignTable.action")}
+                          aria-label={item.deniedDate ? t("assignTable.deniedTooltip") : t("assignTable.action")}
+                          className="text-muted transition-colors hover:text-accent-dark disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          <Armchair size={16} />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setDialog({ mode: "edit", item })}
@@ -223,7 +263,13 @@ export default function GuestsManager({
       <FormDialog
         open={dialog !== null}
         onClose={() => setDialog(null)}
-        title={dialog?.mode === "edit" ? t("editTitle") : t("newTitle")}
+        title={
+          dialog?.mode === "edit"
+            ? t("editTitle")
+            : dialog?.mode === "assignTable"
+              ? t("assignTable.title", { name: dialog.item.name })
+              : t("newTitle")
+        }
       >
         {dialog?.mode === "create" && (
           <GuestItemForm
@@ -237,6 +283,14 @@ export default function GuestsManager({
             action={updateGuestItemAction.bind(null, celebrationId, dialog.item.id)}
             mode="edit"
             initialItem={dialog.item}
+          />
+        )}
+        {dialog?.mode === "assignTable" && (
+          <AssignGuestTableForm
+            key={dialog.item.id}
+            action={updateGuestTableAssignmentsAction.bind(null, celebrationId, dialog.item.id)}
+            events={seatingEvents}
+            initialAssignments={dialog.item.tableAssignments ?? []}
           />
         )}
       </FormDialog>

@@ -43,6 +43,10 @@ import {
   type EventItem,
   type GuestItem,
   type InviteChannel,
+  type GuestTableAssignment,
+  type SeatingLayoutElement,
+  updateEventSeatingLayout,
+  updateGuestTableAssignments,
   type LocalizedText,
 } from "@/lib/celebrations";
 import {
@@ -57,6 +61,7 @@ import {
 } from "@/lib/uploads";
 import { storageQuotaErrorMessage } from "@/lib/storageQuotaMessage";
 import { logAction } from "@/lib/logActions";
+import { samePhone } from "@/lib/invitationMessage";
 import {
   recordInviteSent,
   regenerateInviteToken,
@@ -537,9 +542,11 @@ function readEventItemForm(
   const country = String(formData.get("country") ?? "").trim() || undefined;
   const mapLat = parseOptionalNumber(formData.get("mapLat"));
   const mapLng = parseOptionalNumber(formData.get("mapLng"));
+  const hasSeating = formData.get("hasSeating") === "on";
 
   return {
     title,
+    hasSeating,
     ...(description ? { description } : {}),
     ...(area ? { area } : {}),
     ...(date ? { date } : {}),
@@ -687,7 +694,7 @@ function findDuplicateGuestContact(
     if (input.email && guest.email?.toLowerCase() === input.email.toLowerCase()) {
       return "email";
     }
-    if (input.phone && guest.phone === input.phone) {
+    if (input.phone && samePhone(guest.phone, input.phone)) {
       return "phone";
     }
   }
@@ -1008,6 +1015,125 @@ export async function updateInvitationMessageAction(
     dataTo: message,
   });
 
+  revalidatePath(`/celebrations/${celebrationId}/guests`);
+  return redirect({ href: `/celebrations/${celebrationId}/guests`, locale: await getLocale() });
+}
+
+// ---------------------------------------------------------------------------
+// Seating — layout designer (events/[eventId]/seating-layout) and table
+// assignment (Guests tab). Ported from the recovered 2026-08-26 work.
+// ---------------------------------------------------------------------------
+
+const SEATING_TYPES = new Set(["table-circle", "table-rect", "placeholder"]);
+const MAX_LAYOUT_ELEMENTS = 300;
+const MAX_COORD = 20000;
+
+// The editor sends a plain array (not FormData); never trust its shape.
+function sanitizeLayout(input: unknown): SeatingLayoutElement[] | null {
+  if (!Array.isArray(input) || input.length > MAX_LAYOUT_ELEMENTS) return null;
+  const num = (v: unknown, min: number, max: number) =>
+    typeof v === "number" && Number.isFinite(v) && v >= min && v <= max ? v : null;
+  const out: SeatingLayoutElement[] = [];
+  const ids = new Set<string>();
+  for (const raw of input) {
+    if (!raw || typeof raw !== "object") return null;
+    const el = raw as Record<string, unknown>;
+    const id = typeof el.id === "string" ? el.id.slice(0, 64) : "";
+    const type = typeof el.type === "string" && SEATING_TYPES.has(el.type) ? (el.type as SeatingLayoutElement["type"]) : null;
+    const x = num(el.x, -MAX_COORD, MAX_COORD), y = num(el.y, -MAX_COORD, MAX_COORD);
+    const width = num(el.width, 1, MAX_COORD), height = num(el.height, 1, MAX_COORD);
+    if (!id || ids.has(id) || !type || x === null || y === null || width === null || height === null) return null;
+    ids.add(id);
+    const item: SeatingLayoutElement = { id, type, x, y, width, height };
+    if (type === "placeholder") {
+      if (typeof el.label === "string" && el.label.trim()) item.label = el.label.trim().slice(0, 60);
+    } else {
+      if (typeof el.code === "string" && el.code.trim()) item.code = el.code.trim().slice(0, 20);
+      const maxPeople = num(el.maxPeople, 0, 1000);
+      if (maxPeople !== null) item.maxPeople = Math.round(maxPeople);
+    }
+    out.push(item);
+  }
+  return out;
+}
+
+export interface SeatingLayoutFormState {
+  error?: string;
+}
+
+// Called directly from EventSeatingLayoutEditor's Save button with the
+// elements array built on the canvas.
+export async function updateEventSeatingLayoutAction(
+  celebrationId: string,
+  eventId: string,
+  elements: SeatingLayoutElement[]
+): Promise<SeatingLayoutFormState> {
+  const t = await getTranslations("celebrations.errors");
+  const celebration = await getCelebrationById(celebrationId);
+  if (!celebration) return { error: t("notFound") };
+  const access = await assertTabAccess(celebration);
+  if ("error" in access) return { error: access.error };
+  const existing = celebration.events?.find((item) => item.id === eventId);
+  if (!existing?.hasSeating) return { error: t("notFound") };
+
+  const clean = sanitizeLayout(elements);
+  if (!clean) return { error: t("updateFailed") };
+
+  await updateEventSeatingLayout(celebrationId, eventId, clean);
+  await logAction({
+    userId: (await getCurrentUserId()) ?? "system",
+    type: "info",
+    category: "Events",
+    message: `Updated seating layout for event "${localizedLabel(existing.title)}" on "${celebration.title}"`,
+    dataFrom: { elementCount: existing.seatingLayout?.length ?? 0 },
+    dataTo: { elementCount: clean.length },
+  });
+  revalidatePath(`/celebrations/${celebrationId}/events/${eventId}/seating-layout`);
+  return {};
+}
+
+export interface GuestTableAssignmentFormState {
+  error?: string;
+}
+
+// The "Assign table" dialog: one `table.<eventId>` select per seating event.
+// Only real tables (not placeholders) still on the event's layout are kept,
+// and a guest who declined can't hold a table.
+export async function updateGuestTableAssignmentsAction(
+  celebrationId: string,
+  guestId: string,
+  _prevState: GuestTableAssignmentFormState,
+  formData: FormData
+): Promise<GuestTableAssignmentFormState> {
+  const t = await getTranslations("celebrations.errors");
+  const tGuests = await getTranslations("celebrations.guests.errors");
+  const celebration = await getCelebrationById(celebrationId);
+  if (!celebration) return { error: t("notFound") };
+  const access = await assertTabAccess(celebration);
+  if ("error" in access) return { error: access.error };
+  const existing = celebration.guests?.find((item) => item.id === guestId);
+  if (!existing) return { error: t("notFound") };
+  if (existing.deniedDate) return { error: tGuests("denied") };
+
+  const assignments: GuestTableAssignment[] = [];
+  for (const event of (celebration.events ?? []).filter((e) => e.hasSeating)) {
+    const tableId = String(formData.get(`table.${event.id}`) ?? "").trim();
+    if (!tableId) continue;
+    const isTable = event.seatingLayout?.some(
+      (el) => el.id === tableId && (el.type === "table-circle" || el.type === "table-rect")
+    );
+    if (isTable) assignments.push({ eventId: event.id, tableId });
+  }
+
+  await updateGuestTableAssignments(celebrationId, guestId, assignments);
+  await logAction({
+    userId: (await getCurrentUserId()) ?? "system",
+    type: "info",
+    category: "Guests",
+    message: `Updated table assignments for guest "${existing.name}" on "${celebration.title}"`,
+    dataFrom: { tableAssignments: existing.tableAssignments ?? [] },
+    dataTo: { tableAssignments: assignments },
+  });
   revalidatePath(`/celebrations/${celebrationId}/guests`);
   return redirect({ href: `/celebrations/${celebrationId}/guests`, locale: await getLocale() });
 }
