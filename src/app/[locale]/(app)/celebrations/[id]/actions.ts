@@ -1,6 +1,21 @@
 "use server";
 
 import { canAccessCelebration } from "@/lib/celebrationAccess";
+import {
+  canReserveSubdomain,
+  followCelebrationChange,
+  getCelebrationSubdomain,
+  isSubdomainAvailable,
+  releaseSubdomain,
+  reserveSubdomain,
+} from "@/lib/subdomainReservations";
+import {
+  domainForType,
+  normalizeLabel,
+  reservationPeriod,
+  validateLabel,
+  type LabelError,
+} from "@/lib/siteDomains";
 import { revalidatePath } from "next/cache";
 import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
@@ -167,9 +182,20 @@ export async function updateCelebrationInfoAction(
     return { error: message };
   }
 
+  // A reserved subdomain follows the date; a clash rejects the change.
+  const actorId = (await getCurrentUserId()) ?? "system";
+  const follow = await followCelebrationChange(
+    id,
+    title,
+    { type: before.type, celebrationDate: input.celebrationDate },
+    actorId
+  );
+  if (!follow.ok) return { error: t("subdomainClash", { label: follow.label }) };
+
   try {
     await updateCelebrationInfo(id, input);
   } catch {
+    await followCelebrationChange(id, title, before, actorId); // move it back
     return { error: t("updateFailed") };
   }
 
@@ -190,7 +216,7 @@ export async function updateCelebrationInfoAction(
   }
 
   await logAction({
-    userId: (await getCurrentUserId()) ?? "system",
+    userId: actorId,
     type: "info",
     category: "Celebrations",
     message: `Updated celebration info "${title}"`,
@@ -769,4 +795,108 @@ export async function deleteLiveEventItemAction(celebrationId: string, itemId: s
   });
 
   revalidatePath(`/celebrations/${celebrationId}/live-events`);
+}
+
+// ---------------------------------------------------------------------------
+// Domain tab — subdomain reservations (docs/CELEBRATION-SUBDOMAINS.md)
+// ---------------------------------------------------------------------------
+
+export type SubdomainAvailability =
+  | { status: "available" }
+  | { status: "taken" }
+  | { status: "current" }
+  | { status: "invalid"; reason: LabelError }
+  | { status: "error" };
+
+// Live check while typing. Same access rules as reserving, minus premium
+// (harmless read; the reserve action enforces premium).
+export async function checkSubdomainAvailabilityAction(
+  id: string,
+  rawLabel: string
+): Promise<SubdomainAvailability> {
+  const celebration = await getCelebrationById(id);
+  if (!celebration?.celebrationDate) return { status: "error" };
+  const access = await assertTabAccess(celebration);
+  if ("error" in access) return { status: "error" };
+
+  const label = normalizeLabel(rawLabel);
+  const invalid = validateLabel(label);
+  if (invalid) return { status: "invalid", reason: invalid };
+
+  const domain = domainForType(celebration.type);
+  const current = await getCelebrationSubdomain(id);
+  if (current?.domain === domain && current.label === label) return { status: "current" };
+
+  const free = await isSubdomainAvailable(
+    domain,
+    label,
+    reservationPeriod(celebration.celebrationDate),
+    id
+  );
+  return { status: free ? "available" : "taken" };
+}
+
+export interface SubdomainFormState {
+  error?: string;
+}
+
+export async function reserveSubdomainAction(
+  id: string,
+  _prevState: SubdomainFormState,
+  formData: FormData
+): Promise<SubdomainFormState> {
+  const t = await getTranslations("celebrations.domain.errors");
+  const celebration = await getCelebrationById(id);
+  if (!celebration) return { error: t("notFound") };
+  const access = await assertTabAccess(celebration);
+  if ("error" in access) return { error: access.error };
+
+  if (!(await canReserveSubdomain(celebration))) return { error: t("premiumRequired") };
+  if (!celebration.celebrationDate) return { error: t("dateRequired") };
+
+  const label = normalizeLabel(String(formData.get("label") ?? ""));
+  const invalid = validateLabel(label);
+  if (invalid) return { error: t(`invalid.${invalid}`) };
+
+  const actorId = (await getCurrentUserId()) ?? "system";
+  const before = await getCelebrationSubdomain(id);
+  const result = await reserveSubdomain(celebration, label, actorId);
+  if (!result.ok) return { error: t("taken") };
+
+  if (!before || before.label !== label || before.domain !== result.subdomain.domain) {
+    await logAction({
+      userId: actorId,
+      type: "success",
+      category: "Celebrations",
+      message: before
+        ? `Changed subdomain of "${celebration.title}" to ${label}.${result.subdomain.domain}`
+        : `Reserved subdomain ${label}.${result.subdomain.domain} for "${celebration.title}"`,
+      ...(before ? { dataFrom: before } : {}),
+      dataTo: result.subdomain,
+    });
+  }
+
+  revalidatePath(`/celebrations/${id}/domain`);
+  return redirect({ href: `/celebrations/${id}/domain`, locale: await getLocale() });
+}
+
+// Release is allowed even after a Premium → Free downgrade (decision: keep
+// existing reservations, but the owner may still give theirs up).
+export async function releaseSubdomainAction(id: string): Promise<void> {
+  const celebration = await getCelebrationById(id);
+  if (!celebration) return;
+  const access = await assertTabAccess(celebration);
+  if ("error" in access) return;
+
+  const released = await releaseSubdomain(id);
+  if (released) {
+    await logAction({
+      userId: (await getCurrentUserId()) ?? "system",
+      type: "warning",
+      category: "Celebrations",
+      message: `Released subdomain ${released.label}.${released.domain} of "${celebration.title}"`,
+      dataFrom: released,
+    });
+  }
+  revalidatePath(`/celebrations/${id}/domain`);
 }

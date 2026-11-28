@@ -20,6 +20,8 @@ import {
   saveTimelineImageFromPath,
 } from "../../uploads";
 import { seedSpouseUser } from "./users";
+import { getCelebrationById } from "../../celebrations";
+import { getCelebrationSubdomain, reserveSubdomain } from "../../subdomainReservations";
 import type { CelebrationSeed, SeededLogin } from "../types";
 
 async function log(message: string, dataTo?: unknown): Promise<void> {
@@ -36,6 +38,8 @@ export async function seedCelebration(
   const celebrationId = match
     ? match._id.toString()
     : await createSeededCelebration(professionalId, seed);
+
+  if (seed.subdomainLabel) await seedSubdomain(celebrationId, seed.subdomainLabel);
 
   if (!seed.createCoupleLogins) return [];
   const logins = await Promise.all([
@@ -167,4 +171,24 @@ async function createSeededCelebration(
   }
 
   return id;
+}
+
+// Idempotent: only reserves when the celebration has no subdomain yet. A
+// clash (label taken for that period) is logged, never thrown — seeding must
+// not take the app down.
+async function seedSubdomain(celebrationId: string, label: string): Promise<void> {
+  if (await getCelebrationSubdomain(celebrationId)) return;
+  const celebration = await getCelebrationById(celebrationId);
+  if (!celebration?.celebrationDate) return;
+
+  const result = await reserveSubdomain(celebration, label, "system");
+  await logAction({
+    userId: "system",
+    type: result.ok ? "info" : "warning",
+    category: "Celebrations",
+    message: result.ok
+      ? `Seeded subdomain ${label}.${result.subdomain.domain} for "${celebration.title}"`
+      : `Could not seed subdomain "${label}" for "${celebration.title}" (taken)`,
+    ...(result.ok ? { dataTo: result.subdomain } : {}),
+  });
 }

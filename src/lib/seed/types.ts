@@ -22,6 +22,8 @@ export interface CelebrationSeed {
   // showcase couple has logins; the other customers have full contact data
   // but no account.
   createCoupleLogins: boolean;
+  // Premium subdomain to reserve under the type's domain (needs info.celebrationDate).
+  subdomainLabel?: string;
   heroBackgroundSourcePath?: string;
   invitationSourcePath?: string;
   info?: {

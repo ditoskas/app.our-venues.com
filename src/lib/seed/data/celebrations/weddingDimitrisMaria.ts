@@ -11,6 +11,7 @@ export const WEDDING_DIMITRIS_MARIA: CelebrationSeed = {
   title: "Dimitris & Maria Marriage",
   type: "Marriage",
   createCoupleLogins: true,
+  subdomainLabel: "dimitris-and-maria-with-love",
   heroBackgroundSourcePath: SEED_ASSETS.story3,
   invitationSourcePath: SEED_ASSETS.story1,
   husband: {

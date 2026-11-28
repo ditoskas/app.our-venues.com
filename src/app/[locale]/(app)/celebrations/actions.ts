@@ -1,6 +1,7 @@
 "use server";
 
 import { canAccessCelebration } from "@/lib/celebrationAccess";
+import { deleteCelebrationSubdomain, followCelebrationChange } from "@/lib/subdomainReservations";
 import { revalidatePath } from "next/cache";
 import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
@@ -141,13 +142,22 @@ export async function updateCelebrationAction(
   const professional = resolveProfessionalId(access.user, formData, before);
   if ("error" in professional) return { error: t(professional.error) };
 
+  // A reserved subdomain follows the type (its domain); a clash rejects it.
+  const actorId = (await getCurrentUserId()) ?? "system";
+  const follow = await followCelebrationChange(
+    id,
+    parsed.title,
+    { type: parsed.type, celebrationDate: before.celebrationDate },
+    actorId
+  );
+  if (!follow.ok) return { error: t("subdomainClash", { label: follow.label }) };
+
   try {
     await updateCelebration(id, { ...parsed, professionalId: professional.professionalId });
   } catch {
+    await followCelebrationChange(id, before.title, before, actorId); // move it back
     return { error: t("updateFailed") };
   }
-
-  const actorId = (await getCurrentUserId()) ?? "system";
 
   await logAction({
     userId: actorId,
@@ -174,6 +184,7 @@ export async function deleteCelebrationAction(id: string): Promise<void> {
 
   await deleteCelebration(id);
   await deleteCelebrationUploads(celebration.professionalId, id);
+  await deleteCelebrationSubdomain(id);
 
   await logAction({
     userId: (await getCurrentUserId()) ?? "system",

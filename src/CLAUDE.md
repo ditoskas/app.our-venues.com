@@ -1429,6 +1429,29 @@ per-feature.**
   from `messages/en.json` (the canonical shape) — if you restructure
   messages, `en.json` is the source of truth other locales must match.
 
+## Celebration subdomains
+
+Premium celebrations can reserve `{label}.o-gamos-mas.com` (Marriage) or
+`{label}.vaftizomai.com` (Christening) for event −1 month … +1 week; every
+celebration also has a never-expiring permanent link
+`app.our-venues.com/celebrations/{guid}`. **Decisions, data model and the
+phased plan live in `docs/CELEBRATION-SUBDOMAINS.md` — read it before
+touching this feature, and keep it updated.**
+
+## Deployment (production)
+
+Production deployment is **not** done from this repo. The Ansible
+provisioning/deployment scripts live in a separate repo:
+`C:\Users\toska\My Drive (ditoskas@gmail.com)\MyProjects\server-scripts`
+(read its own `CLAUDE.md` first). It provisions per-domain vhosts under
+`/data/customers/{sys_user}/vhosts/{domain}/`, builds Next.js backends under
+PM2 and React frontends as static files, and generates nginx configs from
+`nginx/config/*.j2`. The closest existing stack to this app + the frontend
+is `deploy-thinkcms-with-react-frontend.yml` (Next.js backend behind `/api`
++ React SPA at `/`). TLS is per-domain certbot (`letsencrypt.yml`). That
+repo contains real credentials — never copy values from it into this one.
+The `docker-compose.yml` here is for local development only.
+
 ## Docker
 
 `docker-compose.yml` (repo root) runs three services for local dev:
