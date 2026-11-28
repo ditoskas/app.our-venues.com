@@ -455,7 +455,8 @@
         "confirmationDate": "Confirmation Date",
         "createSubmit": "Add guest",
         "saveSubmit": "Save changes",
-        "saving": "Saving…"
+        "saving": "Saving…",
+        "invitationLanguage": "Invitation language"
       },
       "edit": "Edit",
       "delete": "Delete",
@@ -546,6 +547,38 @@
     "spouseLogin": {
       "passwordRequired": "Enter a login password for {name} — a login will be created for {email}.",
       "passwordTooShort": "The login password for {name} must be at least {min} characters."
+    },
+    "invitations": {
+      "messageTitle": "Invitation message",
+      "messageDescription": "The text sent to each guest with WhatsApp, Viber or Share, in the guest's language. Each guest's text gets their own name and personal link.",
+      "messageLabel": "Message",
+      "placeholdersHint": "Placeholders: {name} the guest's name · {couple} your names · {date} the celebration date · {link} the guest's personal link (keep it in the message).",
+      "saveMessage": "Save message",
+      "saving": "Saving…",
+      "column": "Invitation",
+      "notSent": "Not sent",
+      "sentVia": "Sent {date} via {via}",
+      "openedOn": "Opened {date}",
+      "channels": {
+        "whatsapp": "WhatsApp",
+        "viber": "Viber",
+        "share": "Share"
+      },
+      "filterNotInvited": "Only not invited yet ({count})",
+      "sendWhatsApp": "Send via WhatsApp",
+      "noValidPhone": "No valid phone number for WhatsApp (add the country code, e.g. +30…)",
+      "sendViber": "Send via Viber (pick the contact in Viber; the text is also copied)",
+      "share": "Share…",
+      "shareWithImage": "Share with the invitation image…",
+      "copyLink": "Copy personal link",
+      "copied": "Copied!",
+      "newLink": "New personal link (the old one stops working)",
+      "newLinkConfirm": "Confirm: create a new link",
+      "cancel": "Cancel",
+      "defaultTemplate": {
+        "Marriage": "Dear {name},\nWe would be delighted to have you at our wedding on {date}!\nSee the invitation and let us know if you can come:\n{link}\n\nWith love,\n{couple}",
+        "Christening": "Dear {name},\nWe would be delighted to have you at our child's christening on {date}!\nSee the invitation and let us know if you can come:\n{link}\n\nWith love,\n{couple}"
+      }
     }
   }
 }

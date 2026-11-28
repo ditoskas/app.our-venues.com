@@ -1,16 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations, useFormatter } from "next-intl";
 import { Plus, Pencil, Phone, Mail } from "lucide-react";
 import FormDialog from "@/components/FormDialog";
 import GuestItemForm, { type SerializedGuestItem } from "./GuestItemForm";
 import DeleteGuestItemButton from "./DeleteGuestItemButton";
+import GuestInviteActions from "./GuestInviteActions";
+import type { AppLocale } from "@/i18n/routing";
 import {
   createGuestItemAction,
   updateGuestItemAction,
   deleteGuestItemAction,
 } from "./actions";
+
+// What the Guests tab needs to build each guest's personal message
+// (computed server-side in guests/page.tsx).
+export interface InviteContext {
+  origin: string; // public origin of the permanent link
+  guid: string;
+  couple: string;
+  dates: Record<AppLocale, string>; // the celebration date, per language
+  templates: Record<AppLocale, string>; // the invitation text, per language
+  invitationImageUrl: string | null; // admin route, for the share sheet
+}
 
 type DialogState =
   | { mode: "create" }
@@ -20,18 +33,55 @@ type DialogState =
 export default function GuestsManager({
   celebrationId,
   items,
+  invite,
 }: {
   celebrationId: string;
   items: SerializedGuestItem[];
+  invite: InviteContext;
 }) {
   const t = useTranslations("celebrations.guests");
+  const tInv = useTranslations("celebrations.invitations");
   const tCommon = useTranslations("common");
   const format = useFormatter();
   const [dialog, setDialog] = useState<DialogState>(null);
+  const [onlyNotInvited, setOnlyNotInvited] = useState(false);
+
+  // Fetched once, ahead of any tap: iOS only opens the share sheet directly
+  // inside the tap, so the file must already be in memory then.
+  const [invitationImage, setInvitationImage] = useState<File | null>(null);
+  useEffect(() => {
+    if (!invite.invitationImageUrl) return;
+    let cancelled = false;
+    fetch(invite.invitationImageUrl)
+      .then((res) => (res.ok ? res.blob() : null))
+      .then((blob) => {
+        if (!blob || cancelled) return;
+        const ext = blob.type.split("/")[1]?.replace("jpeg", "jpg") ?? "jpg";
+        setInvitationImage(new File([blob], `invitation.${ext}`, { type: blob.type }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [invite.invitationImageUrl]);
+
+  const notInvitedCount = items.filter((i) => !i.invitedAt).length;
+  const visible = useMemo(
+    () => (onlyNotInvited ? items.filter((i) => !i.invitedAt) : items),
+    [items, onlyNotInvited]
+  );
 
   return (
     <div>
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <label className="flex items-center gap-2 text-sm text-muted">
+          <input
+            type="checkbox"
+            checked={onlyNotInvited}
+            onChange={(e) => setOnlyNotInvited(e.target.checked)}
+          />
+          {tInv("filterNotInvited", { count: notInvitedCount })}
+        </label>
         <button
           type="button"
           onClick={() => setDialog({ mode: "create" })}
@@ -48,7 +98,7 @@ export default function GuestsManager({
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full min-w-[880px] text-sm">
+          <table className="w-full min-w-[1100px] text-sm">
             <thead className="bg-accent-soft/40 text-left text-xs tracking-wide text-muted uppercase">
               <tr>
                 <th className="px-4 py-3">{t("table.name")}</th>
@@ -56,11 +106,12 @@ export default function GuestsManager({
                 <th className="px-4 py-3">{t("table.expectedAttendees")}</th>
                 <th className="px-4 py-3">{t("table.confirmedAttendees")}</th>
                 <th className="px-4 py-3">{t("table.confirmationDate")}</th>
+                <th className="px-4 py-3">{tInv("column")}</th>
                 <th className="px-4 py-3 text-right">{tCommon("actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {items.map((item) => (
+              {visible.map((item) => (
                 <tr
                   key={item.id}
                   className={
@@ -117,8 +168,37 @@ export default function GuestsManager({
                       <span className="text-muted">—</span>
                     )}
                   </td>
+                  <td className="px-4 py-3 text-xs whitespace-nowrap">
+                    {item.invitedAt ? (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-foreground">
+                          {tInv("sentVia", {
+                            date: format.dateTime(new Date(item.invitedAt), { dateStyle: "medium" }),
+                            via: tInv(`channels.${item.invitedVia ?? "share"}`),
+                          })}
+                          {(item.inviteCount ?? 0) > 1 && ` (×${item.inviteCount})`}
+                        </span>
+                        {item.inviteOpenedAt && (
+                          <span className="text-emerald-700">
+                            {tInv("openedOn", {
+                              date: format.dateTime(new Date(item.inviteOpenedAt), { dateStyle: "medium" }),
+                            })}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted">{tInv("notSent")}</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-4">
+                      <GuestInviteActions
+                        celebrationId={celebrationId}
+                        guest={item}
+                        invite={invite}
+                        invitationImage={invitationImage}
+                      />
+                      <span className="h-4 w-px bg-border" aria-hidden />
                       <button
                         type="button"
                         onClick={() => setDialog({ mode: "edit", item })}

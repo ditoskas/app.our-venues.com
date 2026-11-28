@@ -24,3 +24,9 @@ export function siteIndexUrl(): string {
 // Request headers proxy.ts sets when rewriting to /api/site/entry.
 export const SITE_GUID_HEADER = "x-celebration-site-guid";
 export const SITE_HOST_HEADER = "x-celebration-site-host";
+
+// Origin of the admin app, used to build the public links put in messages
+// (personal invitation links). Local Docker sets http://localhost:3000.
+export function publicAppOrigin(): string {
+  return process.env.PUBLIC_APP_ORIGIN || "https://app.our-venues.com";
+}

@@ -1447,6 +1447,48 @@ per-feature.**
   from `messages/en.json` (the canonical shape) — if you restructure
   messages, `en.json` is the source of truth other locales must match.
 
+## Guest invitations
+
+The couple or the professional send each guest a **personal invitation**
+from the celebration's Guests tab, through their **own** WhatsApp / Viber /
+phone share sheet — no business messaging API, nothing sent automatically.
+
+- **Personal link**: every guest gets a secret `inviteToken` (128-bit,
+  `lib/guestInvites.ts`, created when the Guests tab renders —
+  `ensureInviteTokens()`). The link is the permanent link plus
+  `?invite={token}` (origin: `PUBLIC_APP_ORIGIN`, `lib/siteConfig.ts`).
+  Opening it signs the guest in (`GET /api/public/access/invite`, see
+  PUBLIC-API.md): a private site opens directly and the RSVP form knows
+  them. "New link" (`regenerateGuestInviteAction`) invalidates the old one.
+- **Message**: one template per language on the celebration
+  (`Celebration.invitationMessage`, edited in the Guests tab), placeholders
+  `{name}` `{couple}` `{date}` `{link}` (`lib/invitationMessage.ts`). Unset
+  languages fall back to `celebrations.invitations.defaultTemplate.{type}`
+  (read with `t.raw` so the placeholders stay literal). Each guest gets the
+  text in their `GuestItem.locale` (guest form, default `el`).
+- **Buttons per guest** (`GuestInviteActions.tsx`):
+  - WhatsApp → `wa.me/{phone}?text=…` (opens that chat, text pre-filled).
+    Needs a phone `normalizePhone()` understands: `+…`/`00…`, or a 10-digit
+    Greek number (`69…`, `2…` → `30` prepended); otherwise the button is
+    disabled with a hint.
+  - Viber → `viber://forward?text=…` (Viber can't open a given chat with
+    text, so the sender picks the contact; the text is also copied).
+  - Share → `navigator.share` with the **invitation image** as a file
+    (phones), pre-fetched when the tab loads because iOS only opens the share
+    sheet directly inside a tap.
+  - Copy link, New link.
+- **Tracking**: each send calls `recordGuestInvitedAction` → `invitedAt`,
+  `invitedVia`, `inviteCount` (atomic `$inc`); the guest opening their link
+  sets `inviteOpenedAt` once. The apps can't confirm delivery, so "invited"
+  means "the message was opened for this guest". "Only not invited yet"
+  filter on the list.
+- **Data safety**: invitation fields (`GUEST_INVITE_FIELDS`) are written only
+  with atomic per-guest updates, and `updateGuestItem()` always preserves
+  them — the guest form and the RSVP route replace the rest of the guest.
+  The admin edit also keeps `deniedDate` (the form has no such field).
+- **Link preview**: `/api/site/entry` adds Open Graph tags (couple names,
+  date · headline, invitation image) so the shared link shows a card.
+
 ## Celebration subdomains
 
 Premium celebrations can reserve `{label}.o-gamos-mas.com` (Marriage) or

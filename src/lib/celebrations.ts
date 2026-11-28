@@ -61,6 +61,8 @@ export interface EventItem {
   mapLng?: number;
 }
 
+export type InviteChannel = "whatsapp" | "viber" | "share";
+
 export interface GuestItem {
   id: string;
   name: string;
@@ -70,7 +72,28 @@ export interface GuestItem {
   confirmedAttendees?: number;
   confirmationDate?: Date;
   deniedDate?: Date;
+  // Language the invitation message is written in for this guest (defaults
+  // to "el"). Admin-editable in the guest form.
+  locale?: AppLocale;
+  // --- Invitations (lib/guestInvites.ts) — system-managed, never set from
+  // the guest form; updateGuestItem() preserves them. ---
+  // Secret per-guest code in the personal invitation link
+  // (/celebrations/{guid}?invite=…); opening it signs the guest in.
+  inviteToken?: string;
+  invitedAt?: Date; // last time an invitation was sent
+  invitedVia?: InviteChannel;
+  inviteCount?: number; // how many times it was sent (resends included)
+  inviteOpenedAt?: Date; // first time the guest opened their personal link
 }
+
+// Fields of a GuestItem that only the invitation flow writes.
+export const GUEST_INVITE_FIELDS = [
+  "inviteToken",
+  "invitedAt",
+  "invitedVia",
+  "inviteCount",
+  "inviteOpenedAt",
+] as const;
 
 // A guest-submitted photo from the "Live Events" tab — `eventId` points at
 // one of this celebration's own `EventItem`s (the "location" is a closed
@@ -120,6 +143,9 @@ export interface Celebration {
   events?: EventItem[];
   guests?: GuestItem[];
   liveEvents?: LiveEventItem[];
+  // Invitation message per language, with {name} {couple} {date} {link}
+  // placeholders (lib/invitationMessage.ts). Unset languages use the default.
+  invitationMessage?: LocalizedText;
   createdAt: Date;
 }
 
@@ -379,15 +405,24 @@ export async function addGuestItem(
   return newItem;
 }
 
+// Replaces the guest's own fields wholesale (callers pass the complete set —
+// the RSVP route relies on that to clear confirmationDate vs. deniedDate),
+// but always keeps the invitation fields, which neither the guest form nor
+// the RSVP route carry.
 export async function updateGuestItem(
   id: string,
   itemId: string,
   item: Omit<GuestItem, "id">
 ): Promise<void> {
   const celebration = await getCelebrationById(id);
-  const guests = (celebration?.guests ?? []).map((existing) =>
-    existing.id === itemId ? { id: itemId, ...item } : existing
-  );
+  const guests = (celebration?.guests ?? []).map((existing) => {
+    if (existing.id !== itemId) return existing;
+    const kept: Partial<GuestItem> = {};
+    for (const key of GUEST_INVITE_FIELDS) {
+      if (existing[key] !== undefined) (kept as Record<string, unknown>)[key] = existing[key];
+    }
+    return { ...kept, ...item, id: itemId };
+  });
   await setCelebrationGuests(id, guests);
 }
 

@@ -2,6 +2,8 @@
 
 import { useActionState } from "react";
 import { useTranslations } from "next-intl";
+import { routing, type AppLocale } from "@/i18n/routing";
+import type { InviteChannel } from "@/lib/celebrations";
 
 interface GuestItemFormState {
   error?: string;
@@ -16,6 +18,13 @@ export interface SerializedGuestItem {
   confirmedAttendees?: number;
   confirmationDate?: string;
   deniedDate?: string;
+  locale?: AppLocale;
+  // Invitation status (system-managed, display only).
+  inviteToken?: string;
+  invitedAt?: string;
+  invitedVia?: InviteChannel;
+  inviteCount?: number;
+  inviteOpenedAt?: string;
 }
 
 export default function GuestItemForm({
@@ -31,6 +40,7 @@ export default function GuestItemForm({
   initialItem?: SerializedGuestItem;
 }) {
   const t = useTranslations("celebrations.guests.form");
+  const tLang = useTranslations("languageSwitcher");
   const [state, formAction, isPending] = useActionState(action, {});
 
   return (
@@ -79,14 +89,25 @@ export default function GuestItemForm({
         </Field>
       </div>
 
-      <Field label={t("confirmationDate")}>
-        <input
-          type="date"
-          name="confirmationDate"
-          defaultValue={initialItem?.confirmationDate}
-          className="input"
-        />
-      </Field>
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <Field label={t("confirmationDate")}>
+          <input
+            type="date"
+            name="confirmationDate"
+            defaultValue={initialItem?.confirmationDate}
+            className="input"
+          />
+        </Field>
+        <Field label={t("invitationLanguage")}>
+          <select name="locale" defaultValue={initialItem?.locale ?? routing.defaultLocale} className="input">
+            {routing.locales.map((l) => (
+              <option key={l} value={l}>
+                {tLang(l)}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
 
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
 
