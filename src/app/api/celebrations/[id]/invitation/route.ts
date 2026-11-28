@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import path from "node:path";
 import { getCurrentUser } from "@/lib/auth";
+import { canAccessCelebration } from "@/lib/celebrationAccess";
 import { getCelebrationById } from "@/lib/celebrations";
 import { readCelebrationImage, MIME_BY_EXT } from "@/lib/uploads";
 
@@ -22,7 +23,7 @@ export async function GET(
   if (!celebration) {
     return new NextResponse(null, { status: 404 });
   }
-  if (user.role === "Professional" && celebration.professionalId !== user.professionalId) {
+  if (!canAccessCelebration(user, celebration)) {
     return new NextResponse(null, { status: 404 });
   }
   if (!celebration.invitationFilename) {

@@ -28,7 +28,7 @@ export default async function AppLayout({
           realDisplayName={session.realUser.displayName}
         />
       )}
-      <Navbar displayName={user.displayName} logoutAction={logoutAction} />
+      <Navbar displayName={user.displayName} role={user.role} logoutAction={logoutAction} />
       <main className="flex-1 w-full px-6 py-10 lg:px-10">{children}</main>
     </>
   );

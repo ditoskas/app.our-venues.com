@@ -6,6 +6,7 @@
     "storageQuotaExceeded": "Not enough storage space: {used} of {quota} used, this upload needs {incoming}. Remove some images or ask for a larger quota."
   },
   "nav": {
+    "users": "Users",
     "celebrations": "Celebrations",
     "professionals": "Professionals",
     "couples": "Couples",
@@ -32,6 +33,7 @@
     "title": "Dashboard",
     "subtitle": "A single place to plan and orchestrate every wedding and christening on O Gamos Mas.",
     "sections": {
+      "users": { "label": "Users", "description": "Logins for your couples." },
       "celebrations": { "label": "Celebrations", "description": "Active marriage and christening celebrations." },
       "professionals": { "label": "Professionals", "description": "Photographers, venues, and vendors." },
       "couples": { "label": "Couples", "description": "Couple profiles and contact details." },
@@ -89,6 +91,8 @@
       "confirmAction": "Confirm",
       "cancel": "Cancel",
       "form": {
+        "celebration": "Celebration",
+        "selectCelebration": "Select a celebration…",
         "displayName": "Display name",
         "username": "Username",
         "password": "Password",
@@ -108,6 +112,7 @@
         "Couple": "Couple"
       },
       "errors": {
+        "forbidden": "You don't have permission to manage this user.",
         "required": "Display name, username, and role are required.",
         "professionalIdRequired": "Professional ID is required for the Professional role.",
         "coupleIdRequired": "Couple ID is required for the Couple role.",

@@ -1,8 +1,10 @@
 import path from "node:path";
+import { ObjectId } from "mongodb";
 import {
   ensureUserIndexes,
   createUser,
   getUserByUsername,
+  updateUser,
   PROFESSIONAL_USER_PASSWORD,
 } from "./users";
 import {
@@ -26,6 +28,7 @@ import {
   addTimelineItem,
   createCelebration,
   ensureCelebrationIndexes,
+  getCelebrationById,
   listCelebrations,
   updateCelebrationInfo,
   updateCelebrationStory,
@@ -457,7 +460,34 @@ async function seedSpouseUser(
   if (!spouse.email) return;
 
   const existing = await getUserByUsername(spouse.email);
-  if (existing) return;
+  if (existing) {
+    // Repair a dangling link (e.g. the celebration was deleted and re-seeded,
+    // so the user still points at the old _id). A Couple user linked to a
+    // celebration that still exists is left alone — never steal a valid link.
+    if (existing.role !== "Couple" || existing.coupleId === coupleId) return;
+    const linked =
+      existing.coupleId && ObjectId.isValid(existing.coupleId)
+        ? await getCelebrationById(existing.coupleId)
+        : null;
+    if (linked) return;
+
+    await updateUser(existing._id.toString(), {
+      displayName: existing.displayName,
+      username: existing.username,
+      role: "Couple",
+      coupleId,
+      defaultLocale: existing.defaultLocale ?? routing.defaultLocale,
+    });
+    await logAction({
+      userId: "system",
+      type: "warning",
+      category: "Security",
+      message: `Re-linked seeded user "${existing.username}" to its celebration (old link was dangling)`,
+      dataFrom: { coupleId: existing.coupleId },
+      dataTo: { coupleId },
+    });
+    return;
+  }
 
   const user = await createUser({
     displayName: `${spouse.firstName} ${spouse.lastName}`,
@@ -478,7 +508,12 @@ async function seedSpouseUser(
 
 async function seedCelebration(professionalId: string, seed: CelebrationSeed): Promise<void> {
   const existing = await listCelebrations();
-  if (existing.some((c) => c.title === seed.title)) {
+  const match = existing.find((c) => c.title === seed.title);
+  if (match) {
+    // Celebration already seeded — still make sure its spouse logins point at it.
+    const matchId = match._id.toString();
+    await seedSpouseUser(matchId, seed.husband);
+    await seedSpouseUser(matchId, seed.wife);
     return;
   }
 

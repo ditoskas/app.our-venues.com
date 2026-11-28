@@ -1,5 +1,6 @@
 "use server";
 
+import { canAccessCelebration } from "@/lib/celebrationAccess";
 import { revalidatePath } from "next/cache";
 import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
@@ -57,10 +58,7 @@ export interface CelebrationInfoFormState {
 async function assertTabAccess(celebration: Celebration): Promise<{ error: string } | { user: User }> {
   const t = await getTranslations("celebrations.errors");
   const user = await getCurrentUser();
-  if (!user || (user.role !== "Root" && user.role !== "Professional")) {
-    return { error: t("forbidden") };
-  }
-  if (user.role === "Professional" && celebration.professionalId !== user.professionalId) {
+  if (!user || !canAccessCelebration(user, celebration)) {
     return { error: t("forbidden") };
   }
   return { user };

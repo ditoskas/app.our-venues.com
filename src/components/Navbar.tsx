@@ -6,13 +6,16 @@ import { Link, usePathname } from "@/i18n/navigation";
 import UserMenu from "./UserMenu";
 import logo from "@/assets/brand/logo-vertical.png";
 
-const NAV_KEYS = ["celebrations", "professionals", "settings"] as const;
+import { NAV_KEYS_BY_ROLE } from "@/lib/roleAccess";
+import type { Role } from "@/lib/users";
 
 export default function Navbar({
   displayName,
+  role,
   logoutAction,
 }: {
   displayName: string;
+  role: Role;
   logoutAction: () => Promise<void>;
 }) {
   const pathname = usePathname();
@@ -29,7 +32,7 @@ export default function Navbar({
         <div className="hidden items-center gap-8 md:flex">
           <nav>
             <ul className="flex items-center gap-8">
-              {NAV_KEYS.map((key) => {
+              {NAV_KEYS_BY_ROLE[role].map((key) => {
                 const href = `/${key}`;
                 const isActive =
                   pathname === href || pathname.startsWith(`${href}/`);

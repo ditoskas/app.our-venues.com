@@ -299,7 +299,8 @@ Every page requires login except `/login` itself (enforced by `proxy.ts`
 **navbar** + a **body** region (`<main>`) that each route renders into.
 Navbar sections, in order:
 
-Celebrations · Professionals · Settings
+Celebrations · Professionals · Settings (Root) — Celebrations · Users
+(Professional) — Celebrations (Couple); see "Role access matrix" below.
 
 `Navbar.tsx`'s `NAV_KEYS` deliberately does **not** list every route that
 exists — Couples/Story/Events/Guests (see below) still have live pages at
@@ -343,12 +344,36 @@ user menu.
 - **LogActions** (`/settings/log-actions`) — read-only viewer over the
   `LogActions` audit collection.
 
-Users and LogActions are meant to be **Root/Professional only** — this
-role-based restriction is **not yet enforced**. The proxy only checks
-"logged in or not"; it doesn't check `role`. Any authenticated user
-(including a `Couple`) can currently reach every route. Enforcing the
-Root/Professional-only restriction on these two pages specifically is a
-TODO — don't assume it's already gated by role.
+**The whole Settings area is Root-only** — enforced once in
+`settings/layout.tsx` (`requirePageRole(["Root"])`), plus each settings
+page/action re-checks on its own.
+
+### Role access matrix
+
+| Section | Root | Professional | Couple |
+|---|---|---|---|
+| Celebrations (list + View tabs) | all | own (`professionalId`) | own (`coupleId` = celebration `_id`) |
+| Create celebration | ✓ | ✓ | ✗ (edit/delete own only) |
+| Users (`/users`) | — | own login (read-only) + Couple users of own celebrations (CRUD) | ✗ |
+| Professionals, Settings, Couples/Story/Events/Guests placeholders | ✓ | ✗ | ✗ |
+| Profile | ✓ | ✓ | ✓ |
+
+- Navbar items and dashboard cards per role come from
+  `lib/roleAccess.ts` (`NAV_KEYS_BY_ROLE`, `DASHBOARD_SECTIONS_BY_ROLE`,
+  client-safe) — presentation only; pages/actions still enforce access.
+- **One ownership rule for celebrations**: `canAccessCelebration()` in
+  `lib/celebrationAccess.ts` — used by the list filter, `[id]/access.ts`,
+  both celebrations `actions.ts` files and every
+  `/api/celebrations/**` route. Change it there, never inline a role check.
+- **User scope**: `lib/userScope.ts` (`canManageUser`,
+  `listUsersInScope`, `listOwnCelebrationOptions`). `settings/users/
+  actions.ts` serves both Root (`/settings/users`) and Professional
+  (`/users`, `users/page.tsx` reusing `UsersManager` with
+  `celebrationOptions` + `manageableIds`): for a Professional the role is
+  forced to `Couple` and `coupleId` must be one of their own celebrations,
+  derived server-side. Nobody can delete their own account there.
+- "Act as" (see "Authentication") inherits all of this automatically,
+  since it swaps the effective user.
 
 ## Page structure
 
@@ -698,11 +723,14 @@ section.
     whatever was last saved on the Celebration Info tab). A freshly created
     celebration gets `["el"]` at `createCelebration()` time, same as the
     fallback default.
-- **`/celebrations` is Root + Professional only** (Couple is excluded),
-  same double-enforcement pattern as Professionals (see "Professionals"
-  and "Authentication" above): page-level `requirePageRole(["Root",
-  "Professional"])` in `celebrations/page.tsx`, plus each Server Action in
-  `celebrations/actions.ts` independently re-checking via `assertAccess()`.
+- **`/celebrations` is open to all three roles, scoped per row** by
+  `canAccessCelebration()` (see "Role access matrix"), same
+  double-enforcement pattern as Professionals: page-level
+  `requirePageRole` + filter in `celebrations/page.tsx`, plus each Server
+  Action independently re-checking via `assertAccess()`/
+  `assertTabAccess()`. A Couple can edit/delete their own celebration but
+  not create one; on update their `professionalId` is always kept from the
+  existing record (`resolveProfessionalId(user, formData, existing)`).
 - **Professional scoping differs by role** — this is the first section
   with per-row ownership, not just an all-or-nothing role gate:
   - **Root** sees every celebration and must explicitly pick the owning

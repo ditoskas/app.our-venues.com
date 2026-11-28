@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { Role, User } from "@/lib/users";
 import { routing } from "@/i18n/routing";
+import type { CelebrationOption } from "@/lib/userScope";
 
 const ROLES: Role[] = ["Root", "Professional", "Couple"];
 
@@ -26,13 +27,22 @@ interface UserFormProps {
     | "coupleId"
     | "defaultLocale"
   >;
+  // Professional (scoped) mode: role is fixed to Couple and the couple is
+  // picked from the professional's own celebrations instead of a raw id.
+  celebrationOptions?: CelebrationOption[];
 }
 
-export default function UserForm({ action, mode, initialUser }: UserFormProps) {
+export default function UserForm({
+  action,
+  mode,
+  initialUser,
+  celebrationOptions,
+}: UserFormProps) {
+  const scoped = celebrationOptions !== undefined;
   const t = useTranslations("settings.users");
   const tLocale = useTranslations("languageSwitcher");
   const [state, formAction, isPending] = useActionState(action, {});
-  const [role, setRole] = useState<Role>(initialUser?.role ?? "Root");
+  const [role, setRole] = useState<Role>(scoped ? "Couple" : (initialUser?.role ?? "Root"));
 
   return (
     <form action={formAction} className="flex flex-col gap-5">
@@ -71,6 +81,9 @@ export default function UserForm({ action, mode, initialUser }: UserFormProps) {
             className="input"
           />
         </Field>
+        {scoped ? (
+          <input type="hidden" name="role" value="Couple" />
+        ) : (
         <Field label={t("form.role")}>
           <select
             name="role"
@@ -85,6 +98,7 @@ export default function UserForm({ action, mode, initialUser }: UserFormProps) {
             ))}
           </select>
         </Field>
+        )}
       </div>
 
       <Field label={t("form.defaultLocale")}>
@@ -112,7 +126,27 @@ export default function UserForm({ action, mode, initialUser }: UserFormProps) {
         </Field>
       )}
 
-      {role === "Couple" && (
+      {role === "Couple" && scoped && (
+        <Field label={t("form.celebration")}>
+          <select
+            name="coupleId"
+            required
+            defaultValue={initialUser?.coupleId ?? ""}
+            className="input"
+          >
+            <option value="" disabled>
+              {t("form.selectCelebration")}
+            </option>
+            {celebrationOptions.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.title}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
+
+      {role === "Couple" && !scoped && (
         <Field label={t("form.coupleId")}>
           <input
             name="coupleId"

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUserId } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import { getProfessionalById } from "@/lib/professionals";
 import { readProfessionalLogo, MIME_BY_EXT } from "@/lib/uploads";
 import path from "node:path";
@@ -10,12 +10,16 @@ export async function GET(
 ) {
   // Not covered by proxy.ts (API routes are excluded from its matcher), so
   // the auth check happens here instead.
-  const userId = await getCurrentUserId();
-  if (!userId) {
+  const user = await getCurrentUser();
+  if (!user) {
     return new NextResponse(null, { status: 401 });
   }
 
   const { id } = await params;
+  // Root, or the professional's own user — 404 (not 403) for anyone else.
+  if (user.role !== "Root" && user.professionalId !== id) {
+    return new NextResponse(null, { status: 404 });
+  }
   const professional = await getProfessionalById(id);
   if (!professional?.logoFilename) {
     return new NextResponse(null, { status: 404 });

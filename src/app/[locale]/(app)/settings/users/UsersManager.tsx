@@ -10,6 +10,7 @@ import DeleteUserButton from "./DeleteUserButton";
 import { createUserAction, updateUserAction, deleteUserAction } from "./actions";
 import type { Role } from "@/lib/users";
 import type { AppLocale } from "@/i18n/routing";
+import type { CelebrationOption } from "@/lib/userScope";
 
 export interface SerializedUser {
   _id: string;
@@ -23,7 +24,25 @@ export interface SerializedUser {
 
 type DialogState = { mode: "create" } | { mode: "edit"; user: SerializedUser } | null;
 
-export default function UsersManager({ users }: { users: SerializedUser[] }) {
+export default function UsersManager({
+  users,
+  celebrationOptions,
+  manageableIds,
+}: {
+  users: SerializedUser[];
+  // Set for the Professional-scoped /users page; omitted for Root's
+  // /settings/users (every row manageable, raw-id form fields).
+  celebrationOptions?: CelebrationOption[];
+  manageableIds?: string[];
+}) {
+  const canManage = (id: string) => !manageableIds || manageableIds.includes(id);
+  const linkedLabel = (u: SerializedUser) =>
+    (celebrationOptions && u.coupleId
+      ? celebrationOptions.find((c) => c.id === u.coupleId)?.title
+      : undefined) ??
+    u.professionalId ??
+    u.coupleId ??
+    "—";
   const t = useTranslations("settings.users");
   const tCommon = useTranslations("common");
   const [dialog, setDialog] = useState<DialogState>(null);
@@ -62,10 +81,9 @@ export default function UsersManager({ users }: { users: SerializedUser[] }) {
                 <td className="px-4 py-3 text-foreground">
                   {t(`roles.${u.role}`)}
                 </td>
-                <td className="px-4 py-3 text-muted">
-                  {u.professionalId ?? u.coupleId ?? "—"}
-                </td>
+                <td className="px-4 py-3 text-muted">{linkedLabel(u)}</td>
                 <td className="px-4 py-3">
+                  {canManage(u._id) && (
                   <div className="flex items-center justify-end gap-4">
                     <button
                       type="button"
@@ -78,6 +96,7 @@ export default function UsersManager({ users }: { users: SerializedUser[] }) {
                     </button>
                     <DeleteUserButton action={deleteUserAction.bind(null, u._id)} />
                   </div>
+                  )}
                 </td>
               </tr>
             ))}
@@ -91,7 +110,11 @@ export default function UsersManager({ users }: { users: SerializedUser[] }) {
         title={dialog?.mode === "edit" ? t("editTitle") : t("newUser")}
       >
         {dialog?.mode === "create" && (
-          <UserForm action={createUserAction} mode="create" />
+          <UserForm
+            action={createUserAction}
+            mode="create"
+            celebrationOptions={celebrationOptions}
+          />
         )}
         {dialog?.mode === "edit" && (
           <UserForm
@@ -99,6 +122,7 @@ export default function UsersManager({ users }: { users: SerializedUser[] }) {
             action={updateUserAction.bind(null, dialog.user._id)}
             mode="edit"
             initialUser={dialog.user}
+            celebrationOptions={celebrationOptions}
           />
         )}
       </FormDialog>

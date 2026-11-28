@@ -1,23 +1,22 @@
 import { listCelebrations } from "@/lib/celebrations";
 import { listProfessionals } from "@/lib/professionals";
 import { requirePageRole } from "@/lib/auth";
+import { canAccessCelebration } from "@/lib/celebrationAccess";
 import CelebrationsManager, { type SerializedCelebration } from "./CelebrationsManager";
 import type { ProfessionalOption } from "@/components/ProfessionalPicker";
 
 export const dynamic = "force-dynamic";
 
 export default async function CelebrationsPage() {
-  const user = await requirePageRole(["Root", "Professional"]);
+  const user = await requirePageRole(["Root", "Professional", "Couple"]);
 
   const [allCelebrations, professionalDocs] = await Promise.all([
     listCelebrations(),
     user.role === "Root" ? listProfessionals() : Promise.resolve([]),
   ]);
 
-  const visibleCelebrations =
-    user.role === "Professional"
-      ? allCelebrations.filter((c) => c.professionalId === user.professionalId)
-      : allCelebrations;
+  // Filter server-side so a scoped user never even receives other rows.
+  const visibleCelebrations = allCelebrations.filter((c) => canAccessCelebration(user, c));
 
   const serialized: SerializedCelebration[] = visibleCelebrations.map((c) => ({
     _id: c._id.toString(),
