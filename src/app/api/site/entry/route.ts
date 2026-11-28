@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { NextResponse, type NextRequest } from "next/server";
-import { getCelebrationById, getCelebrationByGuid } from "@/lib/celebrations";
+import { getCelebrationById, getCelebrationByGuid, type Celebration } from "@/lib/celebrations";
 import { findActiveCelebrationIdByHost } from "@/lib/subdomainReservations";
 import { domainForType, parseCelebrationHost } from "@/lib/siteDomains";
 import {
@@ -48,7 +48,12 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return new NextResponse(injectCelebration(html, resolved.guid, resolved.basePath), {
+  const page = injectPreviewTags(
+    injectCelebration(html, resolved.guid, resolved.basePath),
+    resolved.celebration,
+    request
+  );
+  return new NextResponse(page, {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       // Whether a subdomain is active changes over time — never cache the shell.
@@ -61,6 +66,7 @@ export async function GET(request: NextRequest) {
 }
 
 interface Resolved {
+  celebration: Celebration;
   guid: string;
   basePath: string; // the SPA router's basename
 }
@@ -69,7 +75,9 @@ async function resolveByGuid(raw: string): Promise<Resolved | null> {
   const guid = raw.toLowerCase();
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(guid)) return null;
   const celebration = await getCelebrationByGuid(guid);
-  return celebration ? { guid: celebration.guid, basePath: `/celebrations/${celebration.guid}` } : null;
+  return celebration
+    ? { celebration, guid: celebration.guid, basePath: `/celebrations/${celebration.guid}` }
+    : null;
 }
 
 async function resolveByHost(rawHost: string | null): Promise<Resolved | null> {
@@ -81,7 +89,7 @@ async function resolveByHost(rawHost: string | null): Promise<Resolved | null> {
   const celebration = await getCelebrationById(celebrationId);
   // Defensive: the reservation's domain must still match the celebration's type.
   if (!celebration || domainForType(celebration.type) !== host.domain) return null;
-  return { guid: celebration.guid, basePath: "/" };
+  return { celebration, guid: celebration.guid, basePath: "/" };
 }
 
 // The built SPA shell, fetched from wherever the frontend is served
@@ -114,4 +122,52 @@ function injectCelebration(html: string, guid: string, basePath: string): string
   const script = `<script>window.celebrationId=${json(guid)};window.celebrationBasePath=${json(basePath)};</script>`;
   // Before any other script in <head>, so it's set before the SPA boots.
   return html.includes("<head>") ? html.replace("<head>", `<head>${script}`) : script + html;
+}
+
+// Link-preview tags (Open Graph): when a link to this page is sent in
+// WhatsApp/Viber/etc., the app fetches it and builds a card from these —
+// the couple's names, the date and the invitation image. Absolute URLs from
+// the request's own host (nginx passes Host and X-Forwarded-Proto), so the
+// card points at whichever domain the link used.
+function injectPreviewTags(html: string, celebration: Celebration, request: NextRequest): string {
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  if (!host) return html;
+  const proto = (request.headers.get("x-forwarded-proto") ?? "https").split(",")[0].trim();
+  const origin = `${proto}://${host}`;
+  const base = `${origin}/api/public/celebration/${celebration.guid}`;
+
+  const title =
+    celebration.type === "Marriage"
+      ? `${celebration.husband.firstName} & ${celebration.wife.firstName}`
+      : celebration.title;
+  const date = celebration.celebrationDate
+    ? new Intl.DateTimeFormat("el-GR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(
+        celebration.celebrationDate
+      )
+    : "";
+  const headline = celebration.headline?.el ?? celebration.headline?.en ?? celebration.headline?.ru ?? "";
+  const description = [date, headline].filter(Boolean).join(" · ");
+  const image = celebration.invitationFilename
+    ? `${base}/invitation`
+    : celebration.heroBackgroundFilename
+      ? `${base}/hero-background`
+      : null;
+
+  const attr = (v: string) =>
+    v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const tags = [
+    `<meta property="og:type" content="website" />`,
+    `<meta property="og:title" content="${attr(title)}" />`,
+    description ? `<meta property="og:description" content="${attr(description)}" />` : "",
+    `<meta property="og:url" content="${attr(`${origin}${request.nextUrl.pathname}`)}" />`,
+    image ? `<meta property="og:image" content="${attr(image)}" />` : "",
+    `<meta name="twitter:card" content="${image ? "summary_large_image" : "summary"}" />`,
+    `<title>${attr(title)}</title>`,
+  ]
+    .filter(Boolean)
+    .join("");
+
+  // The SPA's own <title> is replaced so the browser tab and the card agree.
+  const withoutTitle = html.replace(/<title>[\s\S]*?<\/title>/i, "");
+  return withoutTitle.includes("</head>") ? withoutTitle.replace("</head>", `${tags}</head>`) : withoutTitle;
 }

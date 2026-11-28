@@ -80,6 +80,9 @@ services:
       # Subdomains work locally as http://{label}.o-gamos-mas.com.localhost:3000
       # (Chrome resolves *.localhost to 127.0.0.1, no DNS needed).
       CELEBRATION_SITE_HOST_SUFFIX: .localhost
+      # Origin used in the personal invitation links put in WhatsApp/Viber
+      # messages (production default: https://app.our-venues.com).
+      PUBLIC_APP_ORIGIN: http://localhost:3000
       # Uploaded files go to S3. By default this points at the local S3Mock
       # service above; set the S3_* vars in the root .env (see .env.example)
       # to use a real AWS bucket instead.

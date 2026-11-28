@@ -42,6 +42,7 @@ import {
   type TimelineItem,
   type EventItem,
   type GuestItem,
+  type InviteChannel,
   type LocalizedText,
 } from "@/lib/celebrations";
 import {
@@ -56,6 +57,11 @@ import {
 } from "@/lib/uploads";
 import { storageQuotaErrorMessage } from "@/lib/storageQuotaMessage";
 import { logAction } from "@/lib/logActions";
+import {
+  recordInviteSent,
+  regenerateInviteToken,
+  setInvitationMessage,
+} from "@/lib/guestInvites";
 import { getCurrentUser, getCurrentUserId } from "@/lib/auth";
 import type { User } from "@/lib/users";
 import {
@@ -653,9 +659,12 @@ function readGuestItemForm(
   const expectedAttendees = parseOptionalNumber(formData.get("expectedAttendees"));
   const confirmedAttendees = parseOptionalNumber(formData.get("confirmedAttendees"));
   const confirmationDate = parseOptionalDate(formData.get("confirmationDate"));
+  const localeRaw = String(formData.get("locale") ?? "");
+  const locale = (LOCALES as readonly string[]).includes(localeRaw) ? (localeRaw as AppLocale) : undefined;
 
   return {
     name,
+    ...(locale ? { locale } : {}),
     ...(phone ? { phone } : {}),
     ...(email ? { email } : {}),
     ...(expectedAttendees !== undefined ? { expectedAttendees } : {}),
@@ -745,7 +754,12 @@ export async function updateGuestItemAction(
   if (duplicate === "email") return { error: tGuests("emailTaken") };
   if (duplicate === "phone") return { error: tGuests("phoneTaken") };
 
-  await updateGuestItem(celebrationId, itemId, parsed);
+  // The form has no deniedDate field (only the public RSVP sets it) — keep a
+  // guest's "declined" status unless this edit marks them confirmed.
+  await updateGuestItem(celebrationId, itemId, {
+    ...parsed,
+    ...(existing.deniedDate && !parsed.confirmationDate ? { deniedDate: existing.deniedDate } : {}),
+  });
 
   await logAction({
     userId: (await getCurrentUserId()) ?? "system",
@@ -912,4 +926,88 @@ export async function releaseSubdomainAction(id: string): Promise<void> {
     });
   }
   revalidatePath(`/celebrations/${id}/domain`);
+}
+
+// ---------------------------------------------------------------------------
+// Guest invitations (Guests tab) — CLAUDE.md "Guest invitations"
+// ---------------------------------------------------------------------------
+
+const INVITE_CHANNELS: InviteChannel[] = ["whatsapp", "viber", "share"];
+
+// Called when the sender clicks WhatsApp / Viber / Share for a guest. The
+// apps don't report whether the message was actually sent, so "invited"
+// means "the sender opened the message for this guest".
+export async function recordGuestInvitedAction(
+  celebrationId: string,
+  guestId: string,
+  via: InviteChannel
+): Promise<{ ok: boolean }> {
+  if (!INVITE_CHANNELS.includes(via)) return { ok: false };
+  const celebration = await getCelebrationById(celebrationId);
+  if (!celebration) return { ok: false };
+  const access = await assertTabAccess(celebration);
+  if ("error" in access) return { ok: false };
+  const guest = celebration.guests?.find((g) => g.id === guestId);
+  if (!guest) return { ok: false };
+
+  await recordInviteSent(celebrationId, guestId, via);
+  await logAction({
+    userId: (await getCurrentUserId()) ?? "system",
+    type: "info",
+    category: "Guests",
+    message: `Sent the invitation to "${guest.name}" (${celebration.title}) via ${via}`,
+    dataTo: { guestId, via },
+  });
+  revalidatePath(`/celebrations/${celebrationId}/guests`);
+  return { ok: true };
+}
+
+// New personal link for a guest; the previous one stops working.
+export async function regenerateGuestInviteAction(celebrationId: string, guestId: string): Promise<void> {
+  const celebration = await getCelebrationById(celebrationId);
+  if (!celebration) return;
+  const access = await assertTabAccess(celebration);
+  if ("error" in access) return;
+  const guest = celebration.guests?.find((g) => g.id === guestId);
+  if (!guest) return;
+
+  await regenerateInviteToken(celebrationId, guestId);
+  await logAction({
+    userId: (await getCurrentUserId()) ?? "system",
+    type: "warning",
+    category: "Guests",
+    message: `Issued a new personal invitation link for "${guest.name}" (${celebration.title}); the old one no longer works`,
+    dataTo: { guestId },
+  });
+  revalidatePath(`/celebrations/${celebrationId}/guests`);
+}
+
+export interface InvitationMessageFormState {
+  error?: string;
+}
+
+export async function updateInvitationMessageAction(
+  celebrationId: string,
+  _prevState: InvitationMessageFormState,
+  formData: FormData
+): Promise<InvitationMessageFormState> {
+  const t = await getTranslations("celebrations.errors");
+  const celebration = await getCelebrationById(celebrationId);
+  if (!celebration) return { error: t("notFound") };
+  const access = await assertTabAccess(celebration);
+  if ("error" in access) return { error: access.error };
+
+  const message = readLocalizedText(formData, "invitationMessage");
+  await setInvitationMessage(celebrationId, message);
+  await logAction({
+    userId: (await getCurrentUserId()) ?? "system",
+    type: "info",
+    category: "Guests",
+    message: `Updated the invitation message of "${celebration.title}"`,
+    dataFrom: celebration.invitationMessage,
+    dataTo: message,
+  });
+
+  revalidatePath(`/celebrations/${celebrationId}/guests`);
+  return redirect({ href: `/celebrations/${celebrationId}/guests`, locale: await getLocale() });
 }

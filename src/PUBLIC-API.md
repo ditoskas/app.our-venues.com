@@ -250,6 +250,40 @@ now is before `celebrationDate + 1 day`. `isSitePublic` doesn't matter here.
 **Every failure** — unknown `guid`, sign-in closed, no guest with that
 contact, wrong/expired/used code — is the same `404 {"success": false}`.
 
+## `GET /api/public/access/invite`
+
+Personal invitation link sign-in. Each guest has a secret `inviteToken`; the
+link sent to them is `/celebrations/{guid}?invite={inviteToken}` (permanent
+link). The frontend calls this endpoint when a page opens with `?invite=`:
+
+**Query params**: `guid`, `invite` (both required).
+
+**`200`** — the same result as `access/confirm` step 2, plus the guest's
+`contact` (their email, or phone when there's no email), which the RSVP
+endpoint matches on:
+
+```json
+{
+  "success": true,
+  "contact": "marco.rossi@example.com",
+  "displayName": "Marco Rossi",
+  "maxAttendees": 2,
+  "token": "<signed guest token>",
+  "expiresAt": "2032-09-13T00:00:00.000Z"
+}
+```
+
+The first successful call records `inviteOpenedAt` on the guest (shown as
+"Opened {date}" in the admin). Same window as `access/confirm` (until
+`celebrationDate + 1 day`). Anyone holding a guest's link acts as that guest
+— the admin can issue a new link (the old one stops working). Every failure
+is `404 {"success": false}`.
+
+**Link previews**: the page served for `/celebrations/{guid}` (and for a
+celebration subdomain) carries Open Graph tags — `og:title` (the couple's
+names), `og:description` (date · headline), `og:image` (the invitation
+image, else the hero background) — so WhatsApp/Viber show a card.
+
 ## `GET /api/public/celebration/{guid}/live-events`
 
 The celebration's Live Events photo feed (frontend "Happening Now"), newest
