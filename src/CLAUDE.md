@@ -571,7 +571,11 @@ section.
   `Spouse`: `firstName`, `lastName` required, `email`/`mobile` optional),
   `createdAt`. Plus "Celebration Info" fields (set from the View page's
   first tab, see `CelebrationInfoInput` and "View page" below, all
-  optional except the six booleans): `celebrationDate`, `headline`,
+  optional except the six booleans): `celebrationDate`, `childGender`
+  (`"Boy" | "Girl"`, only ever shown/settable on the form when
+  `type === "Christening"` — drives the guest frontend's theme, see
+  `PUBLIC-API.md`'s celebration route and `frontend.o-gamos-mas.com`'s
+  CLAUDE.md "Theme"), `headline`,
   `quote`, `countdownParagraph` (these three are `LocalizedText` — see
   "Translatable fields" below), `activeLanguages` (`AppLocale[]`, see the
   same section), `maxGuestsPerInvitation`, `showMaxGuests`, `showSeating`,
@@ -1026,6 +1030,59 @@ it or just start real from day one.
     this is the first env var in this repo that's a real secret rather
     than a fixed dev-only value, so it's the first one sourced from a
     gitignored root `.env` rather than hardcoded in `docker-compose.yml`).
+  - **`hasSeating`** (a plain checkbox in `EventItemForm.tsx`, "Has
+    seating") gates a per-event seating layout designer — unrelated to
+    Celebration Info's `showSeating` (which gates the whole "Reception
+    Seating" nav item/page for the public frontend; this is admin-only
+    and per-event, not a public-facing toggle). When true,
+    `EventsManager.tsx`'s Actions column gets an extra `Armchair`-icon
+    link (`configureLayout`) to
+    `celebrations/[id]/events/[eventId]/seating-layout/` — not shown at
+    all when false, and that route itself 404s if visited directly for an
+    event without the flag (`seating-layout/page.tsx` checks
+    `event.hasSeating`, same "don't even confirm this exists" pattern as
+    `access.ts`).
+  - **The seating layout is its own field, saved separately from the rest
+    of the event form.** `EventItem.seatingLayout?: SeatingLayoutElement[]`
+    (`lib/celebrations.ts`) — each element is a round table
+    (`type: "table-circle"`), rectangular table (`"table-rect"`, both
+    with `code` + `maxPeople`), or a free-standing placeholder like "Music
+    Band" (`"placeholder"`, has `label` instead), plus `x`/`y`/`width`/
+    `height` in plain canvas pixels (no real-world scale — a rough visual
+    floor plan, not a CAD drawing). `updateEventSeatingLayout()` replaces
+    the whole array in one shot (same read-modify-write-one-field pattern
+    as the rest of this file), called from `updateEventSeatingLayoutAction()`
+    in `[id]/actions.ts` — **not** bound to a `<form>` like every other
+    action here; `EventSeatingLayoutEditor.tsx`'s Save button calls it
+    directly with a plain `SeatingLayoutElement[]` built up on the canvas
+    (Server Actions can be invoked this way too, not just via
+    `action={}`). Because `updateEventItem()` (the regular event form's
+    save path) replaces the whole `EventItem`, `updateEventItemAction()`
+    explicitly carries the existing `seatingLayout` forward — otherwise
+    saving the Title/Date/Location form would silently wipe out whatever
+    layout was designed.
+  - **`EventSeatingLayoutEditor.tsx`** (client component) is a from-scratch
+    drag/resize canvas — no library. Toolbar buttons add a new element at
+    a fanned-out default position (`nextDefaultPosition()`, so repeated
+    adds don't stack exactly on top of each other); clicking an element
+    selects it (shows Code/Max People or Label in a right-side properties
+    panel, plus a Delete button); dragging the element body moves it,
+    dragging its small bottom-right handle resizes it (min `MIN_SIZE`
+    32px) — both via plain Pointer Events + `setPointerCapture()` on
+    `pointerdown`, tracked in a `useRef` (drag vs. resize state), applied
+    on `pointermove`. **Compute new state before calling its setter, never
+    inside another setState's updater callback** — an earlier version
+    generated the new element's id and called `setSelectedId()` from
+    inside `setElements()`'s updater function, which is impure (React can
+    invoke an updater more than once) and caused exactly this: toolbar
+    clicks silently doing nothing, or the tab hanging outright. If you
+    touch `addElement`/`updateElement`, keep every id/value generated
+    outside the updater, passed in already-computed.
+  - Nothing on the public frontend reads `seatingLayout` yet — it's
+    admin-only for now, not part of `GET /api/public/celebration/{guid}`'s
+    response (see `PUBLIC-API.md`). Exposing it publicly (e.g. for a
+    guest-facing seating chart) would be a deliberate follow-up, not
+    something this feature already does.
 - **Guests** (`guests/page.tsx` + `GuestsManager.tsx`) is the simplest of
   the three list tabs — plain fields only, no image (unlike Timeline) and
   no map (unlike Events). Each `GuestItem`: `name` (required), optional

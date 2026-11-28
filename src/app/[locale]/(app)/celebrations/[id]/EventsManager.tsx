@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useTranslations, useFormatter } from "next-intl";
-import { Plus, Pencil, MapPin } from "lucide-react";
+import { Plus, Pencil, MapPin, Armchair } from "lucide-react";
+import { Link } from "@/i18n/navigation";
 import FormDialog from "@/components/FormDialog";
 import EventItemForm, { type SerializedEventItem } from "./EventItemForm";
 import DeleteEventItemButton from "./DeleteEventItemButton";
@@ -104,6 +105,16 @@ export default function EventsManager({
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-4">
+                      {item.hasSeating && (
+                        <Link
+                          href={`/celebrations/${celebrationId}/events/${item.id}/seating-layout`}
+                          title={t("configureLayout")}
+                          aria-label={t("configureLayout")}
+                          className="text-muted transition-colors hover:text-accent-dark"
+                        >
+                          <Armchair size={16} />
+                        </Link>
+                      )}
                       <button
                         type="button"
                         onClick={() => setDialog({ mode: "edit", item })}

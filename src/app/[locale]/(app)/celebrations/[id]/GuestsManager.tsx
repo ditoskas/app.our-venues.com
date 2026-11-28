@@ -2,32 +2,42 @@
 
 import { useState } from "react";
 import { useTranslations, useFormatter } from "next-intl";
-import { Plus, Pencil, Phone, Mail } from "lucide-react";
+import { Plus, Pencil, Phone, Mail, Armchair } from "lucide-react";
 import FormDialog from "@/components/FormDialog";
 import GuestItemForm, { type SerializedGuestItem } from "./GuestItemForm";
+import AssignGuestTableForm, { type SeatingEventOption } from "./AssignGuestTableForm";
 import DeleteGuestItemButton from "./DeleteGuestItemButton";
 import {
   createGuestItemAction,
   updateGuestItemAction,
   deleteGuestItemAction,
+  updateGuestTableAssignmentsAction,
 } from "./actions";
 
 type DialogState =
   | { mode: "create" }
   | { mode: "edit"; item: SerializedGuestItem }
+  | { mode: "assignTable"; item: SerializedGuestItem }
   | null;
 
 export default function GuestsManager({
   celebrationId,
   items,
+  seatingEvents,
 }: {
   celebrationId: string;
   items: SerializedGuestItem[];
+  seatingEvents: SeatingEventOption[];
 }) {
   const t = useTranslations("celebrations.guests");
   const tCommon = useTranslations("common");
   const format = useFormatter();
   const [dialog, setDialog] = useState<DialogState>(null);
+
+  // "Assign to table" only makes sense once at least one event has opted
+  // into seating (see EventItemForm.tsx's "Has seating" checkbox) — with
+  // none, the action and the Tables column would just always be empty.
+  const hasSeatingEvents = seatingEvents.length > 0;
 
   return (
     <div>
@@ -56,6 +66,7 @@ export default function GuestsManager({
                 <th className="px-4 py-3">{t("table.expectedAttendees")}</th>
                 <th className="px-4 py-3">{t("table.confirmedAttendees")}</th>
                 <th className="px-4 py-3">{t("table.confirmationDate")}</th>
+                {hasSeatingEvents && <th className="px-4 py-3">{t("table.tables")}</th>}
                 <th className="px-4 py-3 text-right">{tCommon("actions")}</th>
               </tr>
             </thead>
@@ -117,8 +128,41 @@ export default function GuestsManager({
                       <span className="text-muted">—</span>
                     )}
                   </td>
+                  {hasSeatingEvents && (
+                    <td className="px-4 py-3">
+                      {item.tableAssignments && item.tableAssignments.length > 0 ? (
+                        <div className="flex flex-col gap-1 text-xs text-muted">
+                          {item.tableAssignments.map((assignment) => {
+                            const event = seatingEvents.find((e) => e.id === assignment.eventId);
+                            const table = event?.tables.find((tb) => tb.id === assignment.tableId);
+                            return (
+                              <span key={`${assignment.eventId}-${assignment.tableId}`}>
+                                {event?.title ?? "?"}: {table?.code ?? "?"}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-4">
+                      {hasSeatingEvents && (
+                        <button
+                          type="button"
+                          onClick={() => setDialog({ mode: "assignTable", item })}
+                          disabled={!!item.deniedDate}
+                          title={item.deniedDate ? t("assignTable.deniedTooltip") : t("assignTable.action")}
+                          aria-label={
+                            item.deniedDate ? t("assignTable.deniedTooltip") : t("assignTable.action")
+                          }
+                          className="text-muted transition-colors hover:text-accent-dark disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-muted"
+                        >
+                          <Armchair size={16} />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setDialog({ mode: "edit", item })}
@@ -143,7 +187,13 @@ export default function GuestsManager({
       <FormDialog
         open={dialog !== null}
         onClose={() => setDialog(null)}
-        title={dialog?.mode === "edit" ? t("editTitle") : t("newTitle")}
+        title={
+          dialog?.mode === "edit"
+            ? t("editTitle")
+            : dialog?.mode === "assignTable"
+              ? t("assignTable.title", { name: dialog.item.name })
+              : t("newTitle")
+        }
       >
         {dialog?.mode === "create" && (
           <GuestItemForm
@@ -157,6 +207,14 @@ export default function GuestsManager({
             action={updateGuestItemAction.bind(null, celebrationId, dialog.item.id)}
             mode="edit"
             initialItem={dialog.item}
+          />
+        )}
+        {dialog?.mode === "assignTable" && (
+          <AssignGuestTableForm
+            key={dialog.item.id}
+            action={updateGuestTableAssignmentsAction.bind(null, celebrationId, dialog.item.id)}
+            events={seatingEvents}
+            initialAssignments={dialog.item.tableAssignments ?? []}
           />
         )}
       </FormDialog>

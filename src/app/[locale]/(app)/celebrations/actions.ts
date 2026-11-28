@@ -6,6 +6,7 @@ import { redirect } from "@/i18n/navigation";
 import {
   createCelebration,
   deleteCelebration,
+  findCelebrationBySubdomain,
   getCelebrationById,
   updateCelebration,
   type Celebration,
@@ -55,14 +56,32 @@ function resolveProfessionalId(
   return professionalId ? { professionalId } : { error: "professionalRequired" };
 }
 
+// A single DNS label — e.g. "dimitris-maria" — the part that goes in front
+// of the type-specific base domain (see getCelebrationBaseDomain() in
+// lib/constants.ts), not a full hostname: no dots, no scheme/path.
+const SUBDOMAIN_REGEX = /^(?!-)[a-z0-9-]{1,63}(?<!-)$/;
+
+function readSubdomain(formData: FormData): { error: "subdomainInvalid" } | { subdomain?: string } {
+  const raw = String(formData.get("subdomain") ?? "").trim().toLowerCase();
+  if (!raw) return { subdomain: undefined };
+  if (!SUBDOMAIN_REGEX.test(raw)) return { error: "subdomainInvalid" };
+  return { subdomain: raw };
+}
+
 function readCelebrationForm(
   formData: FormData
-): { error: string } | Omit<CelebrationInput, "professionalId"> {
+): { error: "required" | "subdomainInvalid" } | Omit<CelebrationInput, "professionalId"> {
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return { error: "required" };
 
   const type = String(formData.get("type") ?? "").trim();
   if (!CELEBRATION_TYPES.includes(type as CelebrationType)) return { error: "required" };
+
+  const price = Number(formData.get("price"));
+  if (!Number.isFinite(price) || price < 0) return { error: "required" };
+
+  const subdomainResult = readSubdomain(formData);
+  if ("error" in subdomainResult) return subdomainResult;
 
   const husband = readSpouse(formData, "husband");
   if ("error" in husband) return { error: "required" };
@@ -70,7 +89,14 @@ function readCelebrationForm(
   const wife = readSpouse(formData, "wife");
   if ("error" in wife) return { error: "required" };
 
-  return { title, type: type as CelebrationType, husband, wife };
+  return {
+    title,
+    type: type as CelebrationType,
+    price,
+    subdomain: subdomainResult.subdomain,
+    husband,
+    wife,
+  };
 }
 
 function toLoggable(celebration: Celebration) {
@@ -88,10 +114,14 @@ export async function createCelebrationAction(
 
   const t = await getTranslations("celebrations.errors");
   const parsed = readCelebrationForm(formData);
-  if ("error" in parsed) return { error: t("required") };
+  if ("error" in parsed) return { error: t(parsed.error) };
 
   const professional = resolveProfessionalId(access.user, formData);
   if ("error" in professional) return { error: t(professional.error) };
+
+  if (parsed.subdomain && (await findCelebrationBySubdomain(parsed.subdomain, parsed.type))) {
+    return { error: t("subdomainTaken") };
+  }
 
   let celebration;
   try {
@@ -130,10 +160,14 @@ export async function updateCelebrationAction(
   if ("error" in access) return { error: access.error };
 
   const parsed = readCelebrationForm(formData);
-  if ("error" in parsed) return { error: t("required") };
+  if ("error" in parsed) return { error: t(parsed.error) };
 
   const professional = resolveProfessionalId(access.user, formData);
   if ("error" in professional) return { error: t(professional.error) };
+
+  if (parsed.subdomain && (await findCelebrationBySubdomain(parsed.subdomain, parsed.type, id))) {
+    return { error: t("subdomainTaken") };
+  }
 
   try {
     await updateCelebration(id, { ...parsed, professionalId: professional.professionalId });

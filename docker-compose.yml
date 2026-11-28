@@ -41,6 +41,7 @@ services:
       MONGODB_URI: mongodb://admin:password@mongodb:27017/o-gamos-mas?authSource=admin
       MONGODB_DB: o-gamos-mas
       SESSION_SECRET: dev-session-secret-change-me
+      GUEST_SESSION_SECRET: dev-guest-session-secret-change-me
       UPLOADS_DIR: /shared
       PORT: 3000
       # Read from a root-level .env file (gitignored, copy from .env.example) —
@@ -48,6 +49,9 @@ services:
       # here. Empty/unset is fine: the map picker just shows a "not configured"
       # message instead of a map.
       NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+      # Same root-level .env sourcing as the Google Maps key above — see
+      # src/.env.local.example for what this is used for.
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
       # Bind mounts on Windows/Mac don't reliably propagate native file-change events into
       # the container, so `next dev` (Turbopack) never notices edits. WATCHPACK_POLLING
       # makes webpack (see dev:docker script) poll the filesystem for changes instead.
@@ -82,6 +86,11 @@ services:
       # the visitor's browser, not inside the Docker network.
       VITE_API_BASE_URL: http://localhost:3000/api
       VITE_CELEBRATION_ID: 3fe69f43-ef7c-4aef-9ba1-0e68275e0d98
+      # Same root-level .env value the backend service reads as
+      # NEXT_PUBLIC_GOOGLE_MAPS_API_KEY above — one real key, two env var
+      # names (Vite vs Next's prefix convention). Used by the frontend's
+      # Events page (src/pages/EventsPage.tsx) to render the map.
+      VITE_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
       # Bind mounts on Windows/Mac don't reliably propagate native
       # file-change events into the container, so Vite's watcher (chokidar)
       # never notices edits without polling — same reason the backend needs

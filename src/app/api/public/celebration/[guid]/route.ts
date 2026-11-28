@@ -53,11 +53,25 @@ export async function GET(
     country: item.country ?? null,
     mapLat: item.mapLat ?? null,
     mapLng: item.mapLng ?? null,
+    // Drives the frontend's Reception Seating page: which events have a
+    // seating layout at all, and the layout itself (read-only there — no
+    // authenticated edit route exists on this public surface). Floor-plan
+    // drawing primitives only (position/size/code/label) — nothing
+    // guest-identifying, so safe on this unauthenticated route the same
+    // way the rest of `events` already is.
+    hasSeating: item.hasSeating ?? false,
+    seatingLayout: item.seatingLayout ?? [],
   }));
 
   return NextResponse.json({
     guid: celebration.guid,
     type: celebration.type,
+    // Only ever set (via the admin's Celebration Info tab) when
+    // type === "Christening" — the frontend uses it to pick between its
+    // "boy"/"girl" guest-site themes instead of the default Marriage one.
+    // `null` for a Marriage, or a Christening whose gender hasn't been
+    // chosen yet.
+    childGender: celebration.childGender ?? null,
     // Which locales this celebration's translatable fields (headline/quote/
     // countdownParagraph, story, timeline/events title+description) are
     // actually being maintained in — the admin's "Active Languages"

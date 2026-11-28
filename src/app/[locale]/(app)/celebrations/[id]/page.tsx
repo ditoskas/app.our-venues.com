@@ -1,4 +1,8 @@
-import { getCelebrationById, getActiveLanguages } from "@/lib/celebrations";
+import {
+  getCelebrationById,
+  getActiveLanguages,
+  isLiveEventConfirmationRequired,
+} from "@/lib/celebrations";
 import { notFound } from "next/navigation";
 import CelebrationInfoForm, { type CelebrationInfoValues } from "./CelebrationInfoForm";
 
@@ -15,6 +19,7 @@ export default async function CelebrationInfoTabPage({
 
   const initialValues: CelebrationInfoValues = {
     title: celebration.title,
+    childGender: celebration.childGender,
     celebrationDate: celebration.celebrationDate
       ? celebration.celebrationDate.toISOString().slice(0, 10)
       : undefined,
@@ -28,11 +33,13 @@ export default async function CelebrationInfoTabPage({
     showLive: celebration.showLive ?? false,
     showReservation: celebration.showReservation ?? false,
     isSitePublic: celebration.isSitePublic ?? false,
+    isConfirmationRequiredOnLiveEvents: isLiveEventConfirmationRequired(celebration),
   };
 
   return (
     <CelebrationInfoForm
       celebrationId={id}
+      celebrationType={celebration.type}
       initialValues={initialValues}
       heroBackgroundUrl={
         celebration.heroBackgroundFilename

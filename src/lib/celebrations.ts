@@ -1,4 +1,4 @@
-import { Collection, ObjectId } from "mongodb";
+import { Collection, Filter, ObjectId } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { getDb } from "./mongodb";
 import type { AppLocale } from "@/i18n/routing";
@@ -6,6 +6,12 @@ import type { AppLocale } from "@/i18n/routing";
 export const CELEBRATIONS_COLLECTION = "Celebrations";
 
 export type CelebrationType = "Marriage" | "Christening";
+
+// Only meaningful (and only editable in the admin form) when
+// type === "Christening" — drives the frontend's guest-facing theme (a
+// "boy"/"girl" palette instead of the default Marriage one). Left unset for
+// a Christening whose gender hasn't been chosen yet, and for every Marriage.
+export type ChildGender = "Boy" | "Girl";
 
 // Guest-facing free text that can be translated into any of the app's
 // locales (see i18n/routing.ts) — only present languages are stored, so a
@@ -32,6 +38,15 @@ export function getActiveLanguages(celebration: Celebration): AppLocale[] {
     : DEFAULT_ACTIVE_LANGUAGES;
 }
 
+// Read-side default for Celebration.isConfirmationRequiredOnLiveEvents —
+// centralized (unlike the other booleans on Celebration, which each just
+// inline `?? false` at their read sites) since this one defaults the
+// opposite way (`?? true`), and getting that backwards would silently
+// publish guest photos without review.
+export function isLiveEventConfirmationRequired(celebration: Celebration): boolean {
+  return celebration.isConfirmationRequiredOnLiveEvents ?? true;
+}
+
 export interface Spouse {
   firstName: string;
   lastName: string;
@@ -47,6 +62,26 @@ export interface TimelineItem {
   imageFilename?: string;
 }
 
+// One shape/piece in an event's seating layout (see EventItem.seatingLayout
+// below) — a round or rectangular table (has `code` + `maxPeople`, no
+// `label`) or a free-standing placeholder like "Music Band"/"Dance Floor"
+// (has `label`, no `code`/`maxPeople`). `x`/`y`/`width`/`height` are plain
+// pixels on the layout editor's canvas, top-left origin — there's no real
+// venue scale/units, this is a rough visual floor plan, not a CAD drawing.
+export type SeatingElementType = "table-circle" | "table-rect" | "placeholder";
+
+export interface SeatingLayoutElement {
+  id: string;
+  type: SeatingElementType;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  code?: string;
+  maxPeople?: number;
+  label?: string;
+}
+
 export interface EventItem {
   id: string;
   title: LocalizedText;
@@ -59,6 +94,29 @@ export interface EventItem {
   country?: string;
   mapLat?: number;
   mapLng?: number;
+  // Gates the "Configure Layout" action on the admin Events tab (see
+  // EventsManager.tsx) — only events opted into seating get a table/seat
+  // layout designer. Defaults to `false` when unset (`?? false`, same
+  // "may not exist on an older document" pattern as Celebration's own
+  // booleans), unlike Celebration.isConfirmationRequiredOnLiveEvents which
+  // defaults the other way.
+  hasSeating?: boolean;
+  seatingLayout?: SeatingLayoutElement[];
+}
+
+// One guest's table assignment for one event — a celebration can have more
+// than one event with seating (e.g. ceremony + reception), so a guest can
+// hold at most one assignment per `eventId` (enforced by
+// updateGuestTableAssignments() below replacing the whole array, not by a
+// DB constraint). `tableId` points at a SeatingLayoutElement.id on that
+// event's seatingLayout — not validated against the element still existing/
+// still being a table (rather than a placeholder) at read time; a stale
+// reference (table deleted or changed back to a placeholder after being
+// assigned) just stops resolving to a visible table, same "orphaned
+// reference" tolerance as LiveEventItem.eventId/uploadedByGuestId.
+export interface GuestTableAssignment {
+  eventId: string;
+  tableId: string;
 }
 
 export interface GuestItem {
@@ -70,6 +128,34 @@ export interface GuestItem {
   confirmedAttendees?: number;
   confirmationDate?: Date;
   deniedDate?: Date;
+  tableAssignments?: GuestTableAssignment[];
+}
+
+// Seats a guest's whole party takes up at a table — confirmedAttendees once
+// RSVP'd, falling back to expectedAttendees, or just 1 (the guest alone) if
+// neither was ever set. Used by getTableReservedSeats() below to turn table
+// assignments into an occupancy count.
+export function guestSeatCount(guest: GuestItem): number {
+  return guest.confirmedAttendees ?? guest.expectedAttendees ?? 1;
+}
+
+// How many seats are currently reserved at one table for one event —
+// derived from GuestItem.tableAssignments rather than stored on the
+// SeatingLayoutElement itself, so it can never drift out of sync with the
+// guest list (see AssignGuestTableForm.tsx and EventSeatingLayoutEditor.tsx,
+// which both display this next to the table's maxPeople capacity).
+export function getTableReservedSeats(
+  guests: GuestItem[],
+  eventId: string,
+  tableId: string
+): number {
+  return guests
+    .filter((guest) =>
+      guest.tableAssignments?.some(
+        (assignment) => assignment.eventId === eventId && assignment.tableId === tableId
+      )
+    )
+    .reduce((sum, guest) => sum + guestSeatCount(guest), 0);
 }
 
 // A guest-submitted photo from the "Live Events" tab — `eventId` points at
@@ -82,6 +168,20 @@ export interface GuestItem {
 // Events/Timeline copy (curated by the admin), title/description on a
 // live upload are free text as the uploader typed it, in whatever single
 // language they used.
+// "pending" needs a moderator to publish (or deny) it via the admin Live
+// Events tab's "Pending Requests" section before it's treated as approved
+// content; "published" is approved and shown in that tab's "Live Feed"
+// section (see publishLiveEventItem()/denyLiveEventItem() below); "denied"
+// is rejected and shown in neither — the record is kept (not deleted) for
+// the audit trail via LogActions, same reasoning GuestItem keeps a
+// deniedDate rather than removing a denied RSVP. Set at creation time by
+// whichever caller adds the item — see
+// Celebration.isConfirmationRequiredOnLiveEvents below and
+// POST /api/public/celebration/{guid}/live-events. The public feed route
+// (GET .../live-events) still returns every item regardless of status —
+// only the admin tab currently filters by it.
+export type LiveEventStatus = "pending" | "published" | "denied";
+
 export interface LiveEventItem {
   id: string;
   eventId: string;
@@ -90,6 +190,15 @@ export interface LiveEventItem {
   uploadedAt: Date;
   title: string;
   description?: string;
+  status: LiveEventStatus;
+  // When this item's status last became "published" — set either
+  // immediately at creation (confirmation not required, see
+  // isLiveEventConfirmationRequired()) or when a moderator approves a
+  // pending item (publishLiveEventItem()). Distinct from uploadedAt (when
+  // the guest originally submitted it) so the admin's "Live Feed" section
+  // can sort by actual publish time, not submission time — the two only
+  // coincide when confirmation wasn't required.
+  publishedAt?: Date;
 }
 
 export interface Celebration {
@@ -98,8 +207,21 @@ export interface Celebration {
   title: string;
   type: CelebrationType;
   professionalId: string;
+  price: number;
+  // The subdomain label this celebration's public site is (or will be)
+  // served from under a base domain chosen by `type` — see
+  // CELEBRATION_BASE_DOMAINS/getCelebrationBaseDomain() in lib/constants.ts.
+  // E.g. "dimitris-maria" on a Marriage becomes
+  // "dimitris-maria.o-gamos-mas.com". Just the label, no dots/base domain.
+  // Optional: not every celebration has one assigned yet. Must be unique
+  // among currently-existing celebrations when set — enforced both by the
+  // partial unique index on this field (ensureCelebrationIndexes()) and by
+  // findCelebrationBySubdomain() at the app layer, same defense-in-depth
+  // pattern as guid's unique index.
+  subdomain?: string;
   husband: Spouse;
   wife: Spouse;
+  childGender?: ChildGender;
   celebrationDate?: Date;
   headline?: LocalizedText;
   quote?: LocalizedText;
@@ -113,6 +235,13 @@ export interface Celebration {
   showLive?: boolean;
   showReservation?: boolean;
   isSitePublic?: boolean;
+  // Gates the status a guest-submitted Live Events photo is created with —
+  // see LiveEventStatus above and POST
+  // /api/public/celebration/{guid}/live-events. Defaults to `true` (via
+  // `?? true`, same "may not exist on an older document" pattern the other
+  // booleans on this type use with `?? false`) so confirmation is required
+  // unless a celebration explicitly opts out.
+  isConfirmationRequiredOnLiveEvents?: boolean;
   storyTitle?: LocalizedText;
   storySubtitle?: LocalizedText;
   storyParagraph?: LocalizedText;
@@ -127,6 +256,8 @@ export interface CelebrationInput {
   title: string;
   type: CelebrationType;
   professionalId: string;
+  price: number;
+  subdomain?: string;
   husband: Spouse;
   wife: Spouse;
 }
@@ -136,6 +267,7 @@ export interface CelebrationInput {
 // spouses) since they're saved independently and don't touch each other.
 export interface CelebrationInfoInput {
   title: string;
+  childGender?: ChildGender;
   celebrationDate?: Date;
   headline?: LocalizedText;
   quote?: LocalizedText;
@@ -147,6 +279,7 @@ export interface CelebrationInfoInput {
   showLive: boolean;
   showReservation: boolean;
   isSitePublic: boolean;
+  isConfirmationRequiredOnLiveEvents: boolean;
 }
 
 // Fields edited from the View page's "Story" tab — the narrative fields,
@@ -165,6 +298,18 @@ async function celebrationsCollection(): Promise<Collection<Celebration>> {
 export async function ensureCelebrationIndexes(): Promise<void> {
   const col = await celebrationsCollection();
   await col.createIndex({ guid: 1 }, { unique: true });
+  // Compound + partial index: uniqueness is scoped per `type`, not global —
+  // the subdomain resolves under a different base domain per type (see
+  // getCelebrationBaseDomain() in lib/constants.ts), so a Marriage and a
+  // Christening can share the same subdomain label without colliding (they
+  // resolve to different hostnames). The partial filter means only
+  // documents that actually have a subdomain set compete for uniqueness, so
+  // any number of celebrations with no subdomain yet can coexist (see
+  // Celebration.subdomain above).
+  await col.createIndex(
+    { type: 1, subdomain: 1 },
+    { unique: true, partialFilterExpression: { subdomain: { $type: "string" } } }
+  );
 }
 
 export async function listCelebrations(): Promise<Celebration[]> {
@@ -184,6 +329,28 @@ export async function getCelebrationByGuid(guid: string): Promise<Celebration | 
   return col.findOne({ guid });
 }
 
+// App-layer uniqueness check backing the compound partial unique index
+// above — used by the create/edit Server Actions to return a friendly
+// "subdomain taken" error before the DB constraint would reject the write.
+// Scoped by `type` since the subdomain resolves under a different base
+// domain per type (see ensureCelebrationIndexes() above) — a Marriage and a
+// Christening may legitimately share the same subdomain label. `excludeId`
+// lets an update re-save a celebration's own unchanged subdomain without
+// flagging itself as a duplicate (same shape as GuestsManager's
+// findDuplicateGuestContact).
+export async function findCelebrationBySubdomain(
+  subdomain: string,
+  type: CelebrationType,
+  excludeId?: string
+): Promise<Celebration | null> {
+  const col = await celebrationsCollection();
+  const filter: Filter<Celebration> = { subdomain, type };
+  if (excludeId) {
+    filter._id = { $ne: new ObjectId(excludeId) };
+  }
+  return col.findOne(filter);
+}
+
 export async function createCelebration(input: CelebrationInput): Promise<Celebration> {
   const doc: Omit<Celebration, "_id"> = {
     ...input,
@@ -197,8 +364,16 @@ export async function createCelebration(input: CelebrationInput): Promise<Celebr
 }
 
 export async function updateCelebration(id: string, input: CelebrationInput): Promise<void> {
+  // subdomain is the one optional field on CelebrationInput — split out so
+  // clearing it in the edit form actually removes it (a plain `$set` with
+  // `subdomain: undefined` would just leave the previous value in place,
+  // since the driver drops undefined-valued keys before sending the update).
+  const { subdomain, ...rest } = input;
   const col = await celebrationsCollection();
-  await col.updateOne({ _id: new ObjectId(id) }, { $set: input });
+  await col.updateOne(
+    { _id: new ObjectId(id) },
+    subdomain ? { $set: { ...rest, subdomain } } : { $set: rest, $unset: { subdomain: "" } }
+  );
 }
 
 // Fields edited from the View page's "Couple Info" tab — husband/wife only,
@@ -223,11 +398,15 @@ export async function updateCelebrationInfo(
     showLive: input.showLive,
     showReservation: input.showReservation,
     isSitePublic: input.isSitePublic,
+    isConfirmationRequiredOnLiveEvents: input.isConfirmationRequiredOnLiveEvents,
   };
   const unset: Partial<Record<
-    "celebrationDate" | "headline" | "quote" | "countdownParagraph" | "maxGuestsPerInvitation",
+    "celebrationDate" | "headline" | "quote" | "countdownParagraph" | "maxGuestsPerInvitation" | "childGender",
     ""
   >> = {};
+
+  if (input.childGender) set.childGender = input.childGender;
+  else unset.childGender = "";
 
   if (input.celebrationDate !== undefined) set.celebrationDate = input.celebrationDate;
   else unset.celebrationDate = "";
@@ -363,6 +542,23 @@ export async function deleteEventItem(id: string, itemId: string): Promise<void>
   await setCelebrationEvents(id, events);
 }
 
+// Saved as one shot from the seating layout editor (celebrations/[id]/events/
+// [eventId]/seating-layout/) — the whole elements array replaces whatever
+// was there, same "replace, don't patch" simplicity as the other
+// read-modify-write helpers in this file. Touches only this one event's
+// seatingLayout field, leaving its title/hasSeating/etc. untouched.
+export async function updateEventSeatingLayout(
+  id: string,
+  itemId: string,
+  elements: SeatingLayoutElement[]
+): Promise<void> {
+  const celebration = await getCelebrationById(id);
+  const events = (celebration?.events ?? []).map((item) =>
+    item.id === itemId ? { ...item, seatingLayout: elements } : item
+  );
+  await setCelebrationEvents(id, events);
+}
+
 async function setCelebrationGuests(id: string, guests: GuestItem[]): Promise<void> {
   const col = await celebrationsCollection();
   await col.updateOne({ _id: new ObjectId(id) }, { $set: { guests } });
@@ -397,15 +593,38 @@ export async function deleteGuestItem(id: string, itemId: string): Promise<void>
   await setCelebrationGuests(id, guests);
 }
 
+// Replaces one guest's whole tableAssignments array in one shot — same
+// "replace, don't patch" shape as updateEventSeatingLayout() above, and
+// touches only this one field, leaving the rest of the guest (name/phone/
+// RSVP fields) untouched. Called from the Guests tab's "Assign to table"
+// dialog (AssignGuestTableForm.tsx), separate from updateGuestItem() so
+// saving the regular guest form doesn't need to know about seating at all —
+// updateGuestItemAction() still has to carry the existing value forward
+// itself when it replaces the whole item, same as events do for
+// seatingLayout.
+export async function updateGuestTableAssignments(
+  id: string,
+  guestId: string,
+  assignments: GuestTableAssignment[]
+): Promise<void> {
+  const celebration = await getCelebrationById(id);
+  const guests = (celebration?.guests ?? []).map((item) =>
+    item.id === guestId
+      ? { ...item, tableAssignments: assignments.length ? assignments : undefined }
+      : item
+  );
+  await setCelebrationGuests(id, guests);
+}
+
 async function setCelebrationLiveEvents(id: string, liveEvents: LiveEventItem[]): Promise<void> {
   const col = await celebrationsCollection();
   await col.updateOne({ _id: new ObjectId(id) }, { $set: { liveEvents } });
 }
 
 // Same read-modify-write-the-whole-array approach as timeline/events/guests
-// above. No updateLiveEventItem() — the Live Events tab is add(seed-only,
-// no admin form)/delete, never edit (see CLAUDE.md "Celebrations" →
-// "Live Events tab").
+// above. No admin create/edit — only add (seed or guest-submitted via
+// POST /api/public/celebration/{guid}/live-events, see PUBLIC-API.md),
+// moderate (publishLiveEventItem()/denyLiveEventItem() below), and delete.
 export async function addLiveEventItem(
   id: string,
   item: Omit<LiveEventItem, "id">
@@ -419,6 +638,29 @@ export async function addLiveEventItem(
 export async function deleteLiveEventItem(id: string, itemId: string): Promise<void> {
   const celebration = await getCelebrationById(id);
   const liveEvents = (celebration?.liveEvents ?? []).filter((item) => item.id !== itemId);
+  await setCelebrationLiveEvents(id, liveEvents);
+}
+
+// Moves a "pending" item into the admin Live Events tab's "Live Feed"
+// section — sets publishedAt to now, which is what that section sorts by.
+export async function publishLiveEventItem(id: string, itemId: string): Promise<void> {
+  const celebration = await getCelebrationById(id);
+  const publishedAt = new Date();
+  const liveEvents = (celebration?.liveEvents ?? []).map((item) =>
+    item.id === itemId ? { ...item, status: "published" as const, publishedAt } : item
+  );
+  await setCelebrationLiveEvents(id, liveEvents);
+}
+
+// Rejects a "pending" item — kept as a "denied" record (not deleted) for
+// the LogActions audit trail, same reasoning GuestItem keeps a deniedDate
+// rather than removing a denied RSVP. Shown in neither the "Pending
+// Requests" nor "Live Feed" admin sections.
+export async function denyLiveEventItem(id: string, itemId: string): Promise<void> {
+  const celebration = await getCelebrationById(id);
+  const liveEvents = (celebration?.liveEvents ?? []).map((item) =>
+    item.id === itemId ? { ...item, status: "denied" as const } : item
+  );
   await setCelebrationLiveEvents(id, liveEvents);
 }
 

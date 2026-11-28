@@ -11,13 +11,16 @@ interface SessionPayload {
   exp: number; // unix ms
 }
 
-function bytesToBase64Url(bytes: Uint8Array): string {
+// Exported so lib/guestSession.ts (a separate signed-token pair for public
+// guest 2FA, not the admin session) can reuse the same base64url encoding
+// instead of duplicating it.
+export function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = "";
   for (const b of bytes) binary += String.fromCharCode(b);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function base64UrlToBytes(str: string): Uint8Array {
+export function base64UrlToBytes(str: string): Uint8Array {
   const padded = str.replace(/-/g, "+").replace(/_/g, "/");
   const binary = atob(padded.padEnd(padded.length + ((4 - (padded.length % 4)) % 4), "="));
   const bytes = new Uint8Array(binary.length);

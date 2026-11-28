@@ -55,6 +55,7 @@ Returns the public-facing content for one celebration.
 {
   "guid": "3fe69f43-ef7c-4aef-9ba1-0e68275e0d98",
   "type": "Marriage",
+  "childGender": null,
   "activeLanguages": ["el", "en", "ru"],
   "celebrationInfo": {
     "title": "Dimitris & Maria Marriage",
@@ -101,7 +102,12 @@ Returns the public-facing content for one celebration.
       "postCode": "...",
       "country": "...",
       "mapLat": 43.7746,
-      "mapLng": 11.2492
+      "mapLng": 11.2492,
+      "hasSeating": true,
+      "seatingLayout": [
+        { "id": "...", "type": "table-circle", "x": 40, "y": 40, "width": 80, "height": 80, "code": "T1", "maxPeople": 8 },
+        { "id": "...", "type": "placeholder", "x": 200, "y": 40, "width": 150, "height": 50, "label": "Dance Floor" }
+      ]
     }
   ]
 }
@@ -119,6 +125,13 @@ language that hasn't been filled in yet on the admin side. `el` is the
 primary language and, in practice, the one most likely to be set.
 Everything else on this response (including `celebrationInfo.title`) is
 single-language, as entered in the admin.
+
+**`childGender`** (top-level, next to `guid`/`type`) is `"Boy"`, `"Girl"`,
+or `null` — only ever settable (admin's Celebration Info tab) when
+`type === "Christening"`, so it's always `null` for a Marriage, and also
+`null` for a Christening whose gender hasn't been chosen yet. The frontend
+uses it to pick a "boy"/"girl" guest-site theme for christenings instead of
+the default Marriage palette (see `CLAUDE.md` "Theme" there).
 
 **`activeLanguages`** (top-level, next to `guid`/`type`) is the
 celebration's own "Active Languages" setting (see `CLAUDE.md`
@@ -153,10 +166,27 @@ the data in this very response is already sitting in their browser. That's
 a client-side-only gate, not a real security boundary — see the note on
 that endpoint below.
 
+**`events[].hasSeating`/`seatingLayout`** back the Reception Seating page:
+`hasSeating` (`?? false`, same convention as the `show*` flags) marks which
+events actually have a seating chart at all — an event can exist without
+one. `seatingLayout` is that event's floor-plan elements as the admin's
+seating-layout editor saved them (`?? []` when unset) — round/rect tables
+(`type: "table-circle"`/`"table-rect"`, with `code`/`maxPeople`) or free
+placeholders (`type: "placeholder"`, with `label`), each positioned by
+plain `x`/`y`/`width`/`height` pixels on a fixed logical canvas (see the
+admin's `EventSeatingLayoutEditor.tsx` — `1400×900`; the frontend read-only
+viewer scales that canvas to fit rather than using those units as real
+screen pixels). Returned for every event regardless of `hasSeating`
+(`[]` when there's nothing to show) — this route doesn't filter `events`
+itself, same as everything else on it.
+
 **Deliberately excluded**:
-- `guests` — the guest list is never exposed publicly, on any route. Only
-  the confirm endpoints touch guest data, and only one guest record at a
-  time, scoped by the phone/email the caller already supplied.
+- `guests` — the full guest list is never exposed publicly, on any route.
+  The confirm endpoints only ever touch one guest record at a time, scoped
+  by the phone/email/token the caller already supplied. The one deliberate,
+  narrow exception is `GET /api/public/celebration/{guid}/seating` below,
+  which returns guest **names** (nothing else) grouped by table — see that
+  section for why and how it's scoped.
 - The celebration's Mongo `_id` and `professionalId` — internal-only,
   `guid` is the public identifier.
 
@@ -197,44 +227,158 @@ at. Same access model as the route above (guid alone, no `isSitePublic`
 check): 404 if the guid doesn't exist, or if no invitation has been
 uploaded.
 
+## `GET /api/public/celebration/{guid}/seating`
+
+Backs the frontend's Reception Seating page: who's assigned to which table
+(see `GuestTableAssignment`/`GuestItem.tableAssignments` and
+`getTableReservedSeats()` in `lib/celebrations.ts` — table
+capacity/position/code themselves come from `events[].seatingLayout` on
+the main celebration route above, not from here). This route only ever
+adds each assigned guest's **name** and **confirmed attendee count** on
+top of that (`attendees`, via the same `guestSeatCount()` helper
+`getTableReservedSeats()` sums — `confirmedAttendees ?? expectedAttendees
+?? 1`), nothing else about a guest.
+
+**Path param**: `guid` — the celebration's `guid`.
+
+**Request header**: `Authorization: Bearer <token>` — optional. When
+present and valid (the guest session token from the verify step of `GET
+/api/public/access/confirm` below), the response also names that guest's
+own table(s), so the frontend can highlight "your table" without a second
+call. Omit it (or send an invalid/expired token) for an anonymous read —
+`myAssignments` just comes back empty, the request doesn't fail.
+
+**200 response body**:
+
+```json
+{
+  "tables": [
+    {
+      "eventId": "...",
+      "tableId": "...",
+      "guests": [
+        { "name": "Maria K.", "attendees": 2 },
+        { "name": "Nikos P.", "attendees": 1 }
+      ]
+    }
+  ],
+  "myAssignments": [
+    { "eventId": "...", "tableId": "..." }
+  ]
+}
+```
+
+`tables` only includes a `(eventId, tableId)` pair that actually has at
+least one guest assigned — an empty/unassigned table simply doesn't appear
+(the frontend already has every table's existence/capacity from
+`seatingLayout`, so there's nothing to add for one with nobody at it).
+`myAssignments` is the authenticated guest's own `tableAssignments` as-is
+(same shape, no names needed — it's already "you"), `[]` when no valid
+token was sent or that guest currently has no assignment for any event.
+
+**Access model**: guid-gated **and** requires `celebrationInfo.isSitePublic
+=== true` — unlike the main celebration/events/timeline/image routes above
+(which are guid-alone), because unlike those this one returns guest names.
+`404` (`{ "error": "Not found" }`) for a missing guid or `isSitePublic:
+false`, same generic-404 convention as everywhere else in this file.
+
 ## `GET /api/public/access/confirm`
 
-**⚠️ STUB — no logic yet.** Always returns success with fixed placeholder
-`displayName`/`maxAttendees` for any input, including a missing/garbage
-`guid` or `contact`. No lookup, no code generation, no email/SMS sending,
-no verification. This exists only so the frontend's two guest-identity
-flows have something to call while it gets built for real:
-`celebrationInfo.isSitePublic`'s access gate (frontend `AccessGatePage`),
-and the reservation/RSVP page's guest login (frontend `GuestLoginForm`,
-shared by both). **Do not treat this as a real access-control or
-identity boundary** — replace this doc section (and the behavior below)
-once it's actually implemented.
-
-Intended eventual shape, called twice by the frontend's guest-login form:
+Guest 2FA — matches a visitor-supplied email/phone against one of a
+celebration's own `guests`, issues a 6-digit one-time code, then verifies
+that code and hands back an authenticated guest session token. Called
+twice by the frontend's guest-login form (`GuestLoginForm`, shared by
+`AccessGatePage`'s site-wide access gate and the reservation/RSVP page's
+guest login): once without `code` to request one, again with it to verify.
+Implemented in `lib/guestAccess.ts` (code generation/storage,
+`GuestAccessCodes` collection, TTL-indexed) and `lib/guestSession.ts`
+(the returned token — signed separately from the admin `og_session`
+cookie, see `GUEST_SESSION_SECRET` in `.env.local.example`).
 
 **Query params**:
 
 | Param | Required | Notes |
 | --- | --- | --- |
 | `guid` | yes | The celebration's `guid`. |
-| `contact` | yes | Email or phone the visitor entered. |
+| `contact` | yes | Email or phone the visitor entered — matched against a guest's `phone` (exact) or `email` (case-insensitive), same rule `GET /api/public/reservations/confirm` uses. |
 | `code` | no | Omitted on the first call (request a code); present on the second (verify it). |
 
-**200 response body** (same shape both calls, for now — see below):
+**What it checks, in order, both calls**:
+1. `guid` resolves to a celebration, and that celebration is **active** —
+   `celebrationDate` is set and the current time is still before
+   `celebrationDate + 1 day`. `isSitePublic` is **not** checked (unlike
+   `reservations/confirm`) — this endpoint is itself what implements the
+   `isSitePublic: false` access gate, so it must keep working while a
+   celebration isn't yet public.
+2. `contact` matches exactly one of the celebration's `guests`.
+
+Any failure at either step — no such `guid`, an inactive celebration, no
+matching guest, or (verify call only) a wrong/expired code — returns the
+same generic `404 { "error": "Not found" }`, so a caller can never tell
+these apart from the outside (same rule as every other route in this
+file — see "Authorization model").
+
+**Step 1 — request a code** (no `code` param): generates a random 6-digit
+code and stores it (10-minute expiry, replacing any code requested earlier
+for the same guest — `TWO_FACTOR_CODE_EXPIRATION_MINUTES` in
+`lib/twoFactorEmail.ts` is the source of truth `guestAccess.ts`'s TTL
+derives from).
+
+- **If `contact` matched the guest's `email`**, the code is delivered by
+  email — `sendTwoFactorCodeEmail()` (`lib/twoFactorEmail.ts`) calls
+  Brevo's transactional email API (`lib/brevo.ts`,
+  `POST https://api.brevo.com/v3/smtp/email`) with `templateId: 1` and
+  `params: { code, year, expirationMinutes: 10 }` (the Brevo template owns
+  the actual subject/body/sender). The code is **withheld** from the
+  response in this case:
+
+  ```json
+  { "success": true }
+  ```
+
+  A Brevo send failure (missing/invalid `BREVO_API_KEY`, API error, etc.)
+  is logged as a `Security`/`error` action and returns
+  `502 { "error": "Failed to send code" }` — the guest must retry.
+
+- **If `contact` matched the guest's `phone`**, there's still no SMS
+  delivery integration — the code is returned directly in the response
+  body, same stand-in behavior as before:
+
+  ```json
+  { "success": true, "code": "042817" }
+  ```
+
+  Anyone who can reach this endpoint with a valid `guid`+phone `contact`
+  can currently complete the login without possessing the actual phone,
+  since the "second factor" is handed straight back to them. This gap is
+  now closed for email contacts, not phone ones.
+
+**Step 2 — verify** (`code` present): the code must match and not have
+expired; it's single-use (deleted immediately on success, so it can't be
+replayed). On success:
 
 ```json
-{ "success": true, "displayName": "Guest", "maxAttendees": 2 }
+{
+  "success": true,
+  "displayName": "Guest name",
+  "maxAttendees": 2,
+  "token": "<signed guest session token>",
+  "expiresAt": "2032-09-13T00:00:00.000Z"
+}
 ```
 
-Step 1 (no `code`): intended to look up `contact` against the celebration
-(guests and/or the couple — not decided yet) and, if it matches, generate
-and deliver a one-time code to that contact out-of-band; `displayName`/
-`maxAttendees` are meaningless on this call and callers should ignore
-them. Step 2 (`code` present): intended to verify the code matches and
-hasn't expired, then return that guest's real display name and the number
-of attendees they're allowed to bring (their `expectedAttendees` — see
-`GuestItem` in `CLAUDE.md` "Celebrations"). Currently every call just
-returns the same fixed values immediately, regardless of `code`.
+`displayName` is the matched guest's `name`; `maxAttendees` is their
+`expectedAttendees` (`GuestItem` — see `CLAUDE.md` "Celebrations"),
+defaulting to `1` if unset. `token` is a signed bearer token (HMAC-SHA256,
+`GuestSessionPayload { celebrationId, guestId, contact, exp }`, verified
+via `verifyGuestSessionToken()` in `lib/guestSession.ts`) — **not** yet
+checked by any route in this repo; issuing it is as far as this endpoint's
+scope goes today. `expiresAt` (also the token's own `exp`) is always
+`celebrationDate + 1 day`, i.e. the same moment the celebration itself
+stops being "active" per the check above.
+
+**Errors**: `400` for a missing `guid`/`contact`. `404` per the checks
+above.
 
 ## `GET /api/public/reservations/confirm`
 
@@ -296,3 +440,146 @@ Every confirm/deny call writes a `LogActions` entry (`category:
 `"system"` uses for the seeder, see `CLAUDE.md` "Action logging") so
 there's an audit trail for public RSVP activity alongside admin-driven
 changes.
+
+## `GET /api/public/celebration/{guid}/live-events`
+
+Returns the celebration's "Live Events" / "Happening Now" feed — guest-
+submitted photos, each pinned to one of the celebration's own `events`
+("location"). Same access model as the main celebration route: guid alone,
+no `isSitePublic` check (visibility of the page itself is the frontend's
+job, via `PrivacySiteGate`).
+
+**Path param**: `guid` — the celebration's `guid`.
+
+**200 response body**:
+
+```json
+{
+  "liveEvents": [
+    {
+      "id": "...",
+      "eventId": "...",
+      "title": "First dance!",
+      "description": "So much fun",
+      "uploadedAt": "2032-09-12T19:04:00.000Z",
+      "imageUrl": "/api/public/celebration/{guid}/live-events/{itemId}/image",
+      "status": "published"
+    }
+  ]
+}
+```
+
+Newest first. Unlike the admin's Live Events tab, this does **not** include
+who uploaded each item — `uploadedByGuestId` is resolved server-side just
+to attribute the write (see `POST` below), never returned here, per the
+"guest list is never exposed publicly" rule (see "Deliberately excluded"
+under the main celebration route). `title`/`description` are plain free
+text as the guest typed them, not `LocalizedText` — unlike Events/Timeline
+copy, this isn't admin-curated multilingual content. `status` is
+`"pending"` or `"published"` (see `POST` below for how it's set) —
+**this route does not filter by it**, every item is returned regardless
+of status; there's no moderation UI yet to act on `"pending"` items, so
+treat `status` as informational only for now.
+
+**Errors**: `404` if the guid doesn't exist (`{ "error": "Not found" }`).
+
+### `GET /api/public/celebration/{guid}/live-events/{itemId}/image`
+
+Serves one live-event item's image — the public counterpart to
+`/api/celebrations/[id]/live-events/[itemId]/image`, the same way the
+timeline-image route is the public counterpart to its authenticated
+equivalent. This is what `imageUrl` above points at. Same access model:
+guid alone, no `isSitePublic` check. 404 if the guid or item doesn't exist.
+
+### `POST /api/public/celebration/{guid}/live-events`
+
+Adds one guest-submitted photo to the feed above. **POST, not GET**,
+unlike the confirm endpoints — this carries a file upload and free-text
+content, not something meant to be a clickable link.
+
+**Path param**: `guid` — the celebration's `guid`.
+
+**Request body**: `multipart/form-data`.
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `eventId` | yes | Must match the `id` of one of this celebration's own `events` — the "location" dropdown is a closed set, not free text. |
+| `contact` | yes | Email or phone. Matched against this celebration's guests exactly like `GET /api/public/reservations/confirm` (`phone` exact, `email` case-insensitive) — this endpoint re-matches `contact` itself on every call rather than requiring the guest to be logged in. See `POST /api/public/live-events` below for the token-authenticated equivalent. |
+| `title` | yes | Free text, as typed by the guest. |
+| `description` | no | Free text. |
+| `image` | yes | The photo file. |
+
+**What it checks, in order**:
+1. `guid` resolves to a celebration, and that celebration's
+   `isSitePublic` is `true` — otherwise `404` (same as reservations
+   confirm; unlike that endpoint, there's no "celebration date must be in
+   the future" check, since Live Events posts happen during/after the
+   event, not before it).
+2. `eventId` matches one of the celebration's `events` — otherwise `400`.
+3. `contact` matches exactly one guest — otherwise `404`.
+
+On success, stores the image (same per-celebration `live-events` upload
+folder the admin's Live Events tab reads from) and appends a
+`LiveEventItem` with `uploadedByGuestId` set to the matched guest and
+`status` set from `celebrationInfo`'s (unexposed) `isConfirmationRequiredOnLiveEvents`
+setting — `"pending"` when that flag is `true` (the default), `"published"`
+when the celebration has opted out of requiring confirmation — writes a
+`LogActions` entry (`category: "Celebrations"`, `userId: "public"`, same
+convention as the confirm endpoints), and returns the created item.
+
+**200 response body**: same shape as one item in the `GET` feed above,
+`201` status.
+
+**Errors**: `400` for a missing `eventId`/`contact`/`title`/`image`, or an
+`eventId` that doesn't match any event. `404` per the checks above.
+
+## `POST /api/public/live-events`
+
+Adds one guest-submitted photo, same as `POST /api/public/celebration/{guid}/live-events`
+above, but for a **logged-in guest** instead of one who re-supplies their
+`contact` on every call. Identity comes entirely from the
+`Authorization: Bearer <token>` header — the guest session token
+`GET /api/public/access/confirm`'s verify step returns (see
+`lib/guestSession.ts`) — so unlike every other route in this file, there's
+no `guid` in the URL and no `contact` field in the body: `celebrationId`,
+`guestId`, and `contact` are all decoded from the token itself.
+
+**CORS note**: a request carrying `Authorization` isn't a CORS "simple
+request" (unlike the guid+contact endpoint's plain `multipart/form-data`
+POST, which never triggers one), so a browser sends an `OPTIONS` preflight
+first — this route answers that with a bare `204`, and `next.config.ts`'s
+`headers()` is what actually grants `POST` + `Authorization` for
+`/api/public/:path*` (previously only `GET, OPTIONS` were allowed there).
+
+**Headers**: `Authorization: Bearer <token>` — required. Missing, malformed,
+or expired/invalid → `401 { "error": "Unauthorized" }`. A token whose
+`guestId` no longer matches any of the celebration's current guests (e.g.
+an admin deleted that guest after the token was issued) also `401`s the
+same way.
+
+**Request body**: `multipart/form-data`.
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `eventId` | yes | Must match the `id` of one of the token's celebration's own `events`. |
+| `title` | yes | Free text, as typed by the guest. |
+| `description` | no | Free text. |
+| `image` | yes | The photo file. |
+
+**What it checks, in order**: token is valid and unexpired (`401` if not)
+→ its `celebrationId` resolves to a celebration whose `isSitePublic` is
+`true` (`404` if not — same gate as the guid+contact endpoint) → its
+`guestId` still matches one of that celebration's guests (`401` if not) →
+`eventId` matches one of the celebration's `events` (`400` if not).
+
+On success: identical write behavior to `POST /api/public/celebration/{guid}/live-events`
+above (same `isConfirmationRequiredOnLiveEvents`-driven `status`/`publishedAt`
+logic, same upload storage, same `LogActions` entry shape) — see that
+section for the details, not repeated here.
+
+**200 response body**: same shape as one item in the `GET` feed above,
+`201` status.
+
+**Errors**: `401` for a missing/invalid/expired token or an unknown
+`guestId`. `404` if the celebration isn't public. `400` for a missing
+`eventId`/`title`/`image`, or an `eventId` that doesn't match any event.

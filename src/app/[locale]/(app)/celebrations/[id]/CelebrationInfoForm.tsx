@@ -4,11 +4,12 @@ import { useActionState, useState } from "react";
 import { useTranslations } from "next-intl";
 import { updateCelebrationInfoAction } from "./actions";
 import LocalizedField from "./LocalizedField";
-import type { LocalizedText } from "@/lib/celebrations";
+import type { CelebrationType, ChildGender, LocalizedText } from "@/lib/celebrations";
 import type { AppLocale } from "@/i18n/routing";
 
 export interface CelebrationInfoValues {
   title: string;
+  childGender?: ChildGender;
   celebrationDate?: string;
   headline?: LocalizedText;
   quote?: LocalizedText;
@@ -20,15 +21,18 @@ export interface CelebrationInfoValues {
   showLive: boolean;
   showReservation: boolean;
   isSitePublic: boolean;
+  isConfirmationRequiredOnLiveEvents: boolean;
 }
 
 export default function CelebrationInfoForm({
   celebrationId,
+  celebrationType,
   initialValues,
   heroBackgroundUrl,
   invitationUrl,
 }: {
   celebrationId: string;
+  celebrationType: CelebrationType;
   initialValues: CelebrationInfoValues;
   heroBackgroundUrl?: string;
   invitationUrl?: string;
@@ -79,6 +83,20 @@ export default function CelebrationInfoForm({
           />
         </Field>
       </div>
+
+      {celebrationType === "Christening" && (
+        <Field label={tInfo("childGender")} hint={tInfo("childGenderHint")}>
+          <select
+            name="childGender"
+            defaultValue={initialValues.childGender ?? ""}
+            className="input"
+          >
+            <option value="">{tInfo("childGenderNone")}</option>
+            <option value="Boy">{tInfo("childGenderBoy")}</option>
+            <option value="Girl">{tInfo("childGenderGirl")}</option>
+          </select>
+        </Field>
+      )}
 
       <fieldset className="rounded-lg border border-border p-4">
         <legend className="px-1 text-xs font-medium tracking-wide text-accent-dark uppercase">
@@ -204,6 +222,11 @@ export default function CelebrationInfoForm({
           name="isSitePublic"
           label={tInfo("isSitePublic")}
           defaultChecked={initialValues.isSitePublic}
+        />
+        <Checkbox
+          name="isConfirmationRequiredOnLiveEvents"
+          label={tInfo("isConfirmationRequiredOnLiveEvents")}
+          defaultChecked={initialValues.isConfirmationRequiredOnLiveEvents}
         />
       </div>
 

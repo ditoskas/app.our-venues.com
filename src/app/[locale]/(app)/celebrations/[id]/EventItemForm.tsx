@@ -23,6 +23,7 @@ export interface SerializedEventItem {
   country?: string;
   mapLat?: number;
   mapLng?: number;
+  hasSeating?: boolean;
 }
 
 export default function EventItemForm({
@@ -83,6 +84,16 @@ export default function EventItemForm({
           className="input"
         />
       </Field>
+
+      <label className="flex items-center gap-2 text-sm text-foreground">
+        <input
+          type="checkbox"
+          name="hasSeating"
+          defaultChecked={initialItem?.hasSeating ?? false}
+          className="h-4 w-4 rounded border-border accent-accent-dark"
+        />
+        {t("hasSeating")}
+      </label>
 
       <fieldset className="rounded-lg border border-border p-4">
         <legend className="px-1 text-xs font-medium tracking-wide text-accent-dark uppercase">

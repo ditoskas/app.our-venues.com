@@ -2,16 +2,30 @@
 
 import { useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
+import type { AppLocale } from "@/i18n/routing";
 import UserMenu from "./UserMenu";
 
-const NAV_KEYS = ["celebrations", "professionals", "settings"] as const;
+// "dashboard" is the only entry whose route isn't `/${key}` — the dashboard
+// lives at the app root (`/`), not `/dashboard` — so nav items carry an
+// explicit href instead of the key-derives-the-route shortcut the other
+// entries use.
+const NAV_ITEMS = [
+  { key: "dashboard", href: "/" },
+  { key: "celebrations", href: "/celebrations" },
+  { key: "professionals", href: "/professionals" },
+  { key: "settings", href: "/settings" },
+] as const;
 
 export default function Navbar({
   displayName,
+  locale,
   logoutAction,
+  switchLanguageAction,
 }: {
   displayName: string;
+  locale: AppLocale;
   logoutAction: () => Promise<void>;
+  switchLanguageAction: (formData: FormData) => Promise<void>;
 }) {
   const pathname = usePathname();
   const t = useTranslations();
@@ -30,10 +44,11 @@ export default function Navbar({
         <div className="hidden items-center gap-8 md:flex">
           <nav>
             <ul className="flex items-center gap-8">
-              {NAV_KEYS.map((key) => {
-                const href = `/${key}`;
+              {NAV_ITEMS.map(({ key, href }) => {
                 const isActive =
-                  pathname === href || pathname.startsWith(`${href}/`);
+                  href === "/"
+                    ? pathname === "/"
+                    : pathname === href || pathname.startsWith(`${href}/`);
                 return (
                   <li key={key}>
                     <Link
@@ -57,7 +72,12 @@ export default function Navbar({
             </ul>
           </nav>
           <div className="border-l border-border pl-6">
-            <UserMenu displayName={displayName} logoutAction={logoutAction} />
+            <UserMenu
+              displayName={displayName}
+              locale={locale}
+              logoutAction={logoutAction}
+              switchLanguageAction={switchLanguageAction}
+            />
           </div>
         </div>
       </div>

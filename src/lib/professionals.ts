@@ -45,6 +45,16 @@ export async function listProfessionals(): Promise<Professional[]> {
   return col.find().sort({ companyName: 1 }).toArray();
 }
 
+// Earliest year any professional was registered — used to anchor the start
+// of the dashboard's year selector for a Root user (who isn't scoped to one
+// professional the way a Professional-role user is). Returns null if there
+// are no professionals yet.
+export async function getEarliestProfessionalRegistrationYear(): Promise<number | null> {
+  const col = await professionalsCollection();
+  const [earliest] = await col.find().sort({ createdAt: 1 }).limit(1).toArray();
+  return earliest ? earliest.createdAt.getFullYear() : null;
+}
+
 export async function getProfessionalById(id: string): Promise<Professional | null> {
   const col = await professionalsCollection();
   return col.findOne({ _id: new ObjectId(id) });

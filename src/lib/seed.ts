@@ -32,8 +32,10 @@ import {
   type CelebrationType,
   type EventItem,
   type GuestItem,
+  type LiveEventStatus,
   type LocalizedText,
 } from "./celebrations";
+import { ensureGuestAccessCodeIndexes } from "./guestAccess";
 import { logAction } from "./logActions";
 import { routing, type AppLocale } from "@/i18n/routing";
 
@@ -65,6 +67,7 @@ const SEED_TIMELINE_IMAGES_DIR = path.join(process.cwd(), "assets", "seed", "tim
 interface CelebrationSeed {
   title: string;
   type: CelebrationType;
+  price: number;
   husband: { firstName: string; lastName: string; email?: string; mobile?: string };
   wife: { firstName: string; lastName: string; email?: string; mobile?: string };
   info?: {
@@ -74,6 +77,7 @@ interface CelebrationSeed {
     countdownParagraph?: LocalizedText;
     activeLanguages?: AppLocale[];
     maxGuestsPerInvitation?: number;
+    isConfirmationRequiredOnLiveEvents?: boolean;
   };
   story?: {
     storyTitle?: LocalizedText;
@@ -118,12 +122,15 @@ interface CelebrationSeed {
     description?: string;
     uploadedAt: Date;
     imageSourcePath: string;
+    status: LiveEventStatus;
+    publishedAt?: Date;
   }[];
 }
 
 const TEST_CELEBRATION_SEED: CelebrationSeed = {
   title: "Dimitris & Maria Marriage",
   type: "Marriage",
+  price: 4500,
   husband: {
     firstName: "Dimitris",
     lastName: "Toskas",
@@ -155,6 +162,7 @@ const TEST_CELEBRATION_SEED: CelebrationSeed = {
     },
     activeLanguages: [...routing.locales],
     maxGuestsPerInvitation: 5,
+    isConfirmationRequiredOnLiveEvents: true,
   },
   story: {
     storyTitle: {
@@ -347,7 +355,10 @@ const TEST_CELEBRATION_SEED: CelebrationSeed = {
   // the "different events" and "different uploader" cases with one
   // fixture each. Reuses the same story-*.jpg placeholders as the
   // Story timeline (see SEED_TIMELINE_IMAGES_DIR) since there are no
-  // dedicated live-event seed images.
+  // dedicated live-event seed images. One "published", one "pending" —
+  // same half/half-fixture approach as the guests list above (see
+  // LiveEventItem.status in lib/celebrations.ts) — so both moderation
+  // states have a fixture, not just an incidental result of a small list.
   liveEvents: [
     {
       eventIndex: 1, // Holy Marriage Union Ceremony
@@ -356,6 +367,8 @@ const TEST_CELEBRATION_SEED: CelebrationSeed = {
       description: "Right after they exchanged rings — the whole church went quiet.",
       uploadedAt: new Date(Date.UTC(2026, 8, 12, 16, 45)),
       imageSourcePath: path.join(SEED_TIMELINE_IMAGES_DIR, "story-1.jpg"),
+      status: "published",
+      publishedAt: new Date(Date.UTC(2026, 8, 12, 16, 50)),
     },
     {
       eventIndex: 2, // Grand Banquet Reception & Ballroom Ball
@@ -364,6 +377,7 @@ const TEST_CELEBRATION_SEED: CelebrationSeed = {
       description: "Everyone rushed the dance floor the moment the band started playing.",
       uploadedAt: new Date(Date.UTC(2026, 8, 12, 21, 30)),
       imageSourcePath: path.join(SEED_TIMELINE_IMAGES_DIR, "story-2.jpg"),
+      status: "pending",
     },
   ],
 };
@@ -485,6 +499,7 @@ async function seedCelebration(professionalId: string, seed: CelebrationSeed): P
     title: seed.title,
     type: seed.type,
     professionalId,
+    price: seed.price,
     husband: seed.husband,
     wife: seed.wife,
   });
@@ -497,6 +512,7 @@ async function seedCelebration(professionalId: string, seed: CelebrationSeed): P
       title: seed.title,
       type: seed.type,
       professionalId,
+      price: seed.price,
       husband: seed.husband,
       wife: seed.wife,
     },
@@ -516,6 +532,7 @@ async function seedCelebration(professionalId: string, seed: CelebrationSeed): P
       showLive: true,
       showReservation: true,
       isSitePublic: false,
+      isConfirmationRequiredOnLiveEvents: seed.info.isConfirmationRequiredOnLiveEvents ?? true,
     });
     await logAction({
       userId: "system",
@@ -614,7 +631,9 @@ async function seedCelebration(professionalId: string, seed: CelebrationSeed): P
         imageFilename,
         uploadedAt: item.uploadedAt,
         title: item.title,
+        status: item.status,
         ...(item.description ? { description: item.description } : {}),
+        ...(item.publishedAt ? { publishedAt: item.publishedAt } : {}),
       });
     }
 
@@ -651,6 +670,7 @@ async function seedSubscriptionPackages(): Promise<void> {
 export async function runSeeders(): Promise<void> {
   await ensureUserIndexes();
   await ensureCelebrationIndexes();
+  await ensureGuestAccessCodeIndexes();
   await seedRootUser();
   const testProfessionalId = await seedTestProfessional();
   await seedCelebration(testProfessionalId, TEST_CELEBRATION_SEED);

@@ -2,7 +2,7 @@ import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
-import { logoutAction } from "./actions";
+import { logoutAction, switchLanguageAction } from "./actions";
 
 export default async function AppLayout({
   children,
@@ -10,16 +10,22 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await getCurrentUser();
+  const locale = await getLocale();
 
   // The proxy already gates every route in this group — this is
   // defense-in-depth in case a page is ever reached another way.
   if (!user) {
-    return redirect({ href: "/login", locale: await getLocale() });
+    return redirect({ href: "/login", locale });
   }
 
   return (
     <>
-      <Navbar displayName={user.displayName} logoutAction={logoutAction} />
+      <Navbar
+        displayName={user.displayName}
+        locale={locale}
+        logoutAction={logoutAction}
+        switchLanguageAction={switchLanguageAction}
+      />
       <main className="flex-1 w-full px-6 py-10 lg:px-10">{children}</main>
     </>
   );

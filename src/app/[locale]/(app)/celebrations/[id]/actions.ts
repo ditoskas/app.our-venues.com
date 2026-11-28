@@ -16,17 +16,24 @@ import {
   addEventItem,
   updateEventItem,
   deleteEventItem,
+  updateEventSeatingLayout,
   addGuestItem,
   updateGuestItem,
   deleteGuestItem,
+  updateGuestTableAssignments,
   deleteLiveEventItem,
+  publishLiveEventItem,
+  denyLiveEventItem,
+  isLiveEventConfirmationRequired,
   type Celebration,
   type CelebrationInfoInput,
   type CelebrationStoryInput,
   type TimelineItem,
   type EventItem,
   type GuestItem,
+  type GuestTableAssignment,
   type LocalizedText,
+  type SeatingLayoutElement,
 } from "@/lib/celebrations";
 import {
   saveTimelineImage,
@@ -134,8 +141,13 @@ export async function updateCelebrationInfoAction(
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return { error: tInfo("required") };
 
+  const childGenderRaw = formData.get("childGender");
+  const childGender =
+    childGenderRaw === "Boy" || childGenderRaw === "Girl" ? childGenderRaw : undefined;
+
   const input: CelebrationInfoInput = {
     title,
+    childGender,
     celebrationDate: parseOptionalDate(formData.get("celebrationDate")),
     headline: readLocalizedText(formData, "headline"),
     quote: readLocalizedText(formData, "quote"),
@@ -147,6 +159,7 @@ export async function updateCelebrationInfoAction(
     showLive: formData.get("showLive") === "on",
     showReservation: formData.get("showReservation") === "on",
     isSitePublic: formData.get("isSitePublic") === "on",
+    isConfirmationRequiredOnLiveEvents: formData.get("isConfirmationRequiredOnLiveEvents") === "on",
   };
 
   try {
@@ -180,6 +193,7 @@ export async function updateCelebrationInfoAction(
     message: `Updated celebration info "${title}"`,
     dataFrom: toLoggable({
       title: before.title,
+      childGender: before.childGender,
       celebrationDate: before.celebrationDate,
       headline: before.headline,
       quote: before.quote,
@@ -191,6 +205,7 @@ export async function updateCelebrationInfoAction(
       showLive: before.showLive ?? false,
       showReservation: before.showReservation ?? false,
       isSitePublic: before.isSitePublic ?? false,
+      isConfirmationRequiredOnLiveEvents: isLiveEventConfirmationRequired(before),
     }),
     dataTo: toLoggable(input),
   });
@@ -455,9 +470,11 @@ function readEventItemForm(
   const country = String(formData.get("country") ?? "").trim() || undefined;
   const mapLat = parseOptionalNumber(formData.get("mapLat"));
   const mapLng = parseOptionalNumber(formData.get("mapLng"));
+  const hasSeating = formData.get("hasSeating") === "on";
 
   return {
     title,
+    hasSeating,
     ...(description ? { description } : {}),
     ...(area ? { area } : {}),
     ...(date ? { date } : {}),
@@ -522,7 +539,14 @@ export async function updateEventItemAction(
   const parsed = readEventItemForm(formData);
   if ("error" in parsed) return { error: tEvents("titleRequired") };
 
-  await updateEventItem(celebrationId, itemId, parsed);
+  // This form doesn't touch seatingLayout (that's the separate seating
+  // layout editor's job) — carry the existing one forward so saving the
+  // regular event form doesn't wipe it out, since updateEventItem()
+  // replaces the whole item.
+  await updateEventItem(celebrationId, itemId, {
+    ...parsed,
+    ...(existing.seatingLayout ? { seatingLayout: existing.seatingLayout } : {}),
+  });
 
   await logAction({
     userId: (await getCurrentUserId()) ?? "system",
@@ -558,6 +582,45 @@ export async function deleteEventItemAction(celebrationId: string, itemId: strin
   });
 
   revalidatePath(`/celebrations/${celebrationId}/events`);
+}
+
+export interface SeatingLayoutFormState {
+  error?: string;
+}
+
+// Not bound to a <form> — called directly from
+// EventSeatingLayoutEditor.tsx's Save button with a plain
+// SeatingLayoutElement[] built up on the canvas, not FormData (Server
+// Actions can be invoked this way too, not just via `action={}`).
+export async function updateEventSeatingLayoutAction(
+  celebrationId: string,
+  eventId: string,
+  elements: SeatingLayoutElement[]
+): Promise<SeatingLayoutFormState> {
+  const t = await getTranslations("celebrations.errors");
+
+  const celebration = await getCelebrationById(celebrationId);
+  if (!celebration) return { error: t("notFound") };
+
+  const access = await assertTabAccess(celebration);
+  if ("error" in access) return { error: access.error };
+
+  const existing = celebration.events?.find((item) => item.id === eventId);
+  if (!existing) return { error: t("notFound") };
+
+  await updateEventSeatingLayout(celebrationId, eventId, elements);
+
+  await logAction({
+    userId: (await getCurrentUserId()) ?? "system",
+    type: "info",
+    category: "Events",
+    message: `Updated seating layout for event "${localizedLabel(existing.title)}" on "${celebration.title}"`,
+    dataFrom: { elementCount: existing.seatingLayout?.length ?? 0 },
+    dataTo: { elementCount: elements.length },
+  });
+
+  revalidatePath(`/celebrations/${celebrationId}/events/${eventId}/seating-layout`);
+  return {};
 }
 
 export interface GuestItemFormState {
@@ -669,7 +732,15 @@ export async function updateGuestItemAction(
   if (duplicate === "email") return { error: tGuests("emailTaken") };
   if (duplicate === "phone") return { error: tGuests("phoneTaken") };
 
-  await updateGuestItem(celebrationId, itemId, parsed);
+  // This form doesn't touch tableAssignments (that's the separate "Assign
+  // to table" dialog's job) — carry the existing ones forward so saving the
+  // regular guest form doesn't wipe them out, since updateGuestItem()
+  // replaces the whole item (same reasoning updateEventItemAction() applies
+  // to seatingLayout above).
+  await updateGuestItem(celebrationId, itemId, {
+    ...parsed,
+    ...(existing.tableAssignments ? { tableAssignments: existing.tableAssignments } : {}),
+  });
 
   await logAction({
     userId: (await getCurrentUserId()) ?? "system",
@@ -707,9 +778,129 @@ export async function deleteGuestItemAction(celebrationId: string, itemId: strin
   revalidatePath(`/celebrations/${celebrationId}/guests`);
 }
 
+export interface GuestTableAssignmentFormState {
+  error?: string;
+}
+
+// Not bound to a <form action={}> in the usual sense of reading every field
+// blind — reads one `table.<eventId>` select per seating-enabled event
+// (see AssignGuestTableForm.tsx), builds the guest's whole
+// GuestTableAssignment[] from scratch, and only keeps entries whose
+// eventId still has hasSeating (so a stale dialog submit — event's seating
+// turned off between opening the dialog and saving — can't silently write
+// an assignment for it back in).
+export async function updateGuestTableAssignmentsAction(
+  celebrationId: string,
+  guestId: string,
+  _prevState: GuestTableAssignmentFormState,
+  formData: FormData
+): Promise<GuestTableAssignmentFormState> {
+  const t = await getTranslations("celebrations.errors");
+  const tGuests = await getTranslations("celebrations.guests.errors");
+
+  const celebration = await getCelebrationById(celebrationId);
+  if (!celebration) return { error: t("notFound") };
+
+  const access = await assertTabAccess(celebration);
+  if ("error" in access) return { error: access.error };
+
+  const existing = celebration.guests?.find((item) => item.id === guestId);
+  if (!existing) return { error: t("notFound") };
+
+  // A denied guest can't hold a table assignment — GuestsManager.tsx
+  // already disables the "Assign to table" action for one, this is the
+  // server-side backstop (same defense-in-depth reasoning as every other
+  // Server Action in this file re-checking what its own UI already
+  // prevents).
+  if (existing.deniedDate) return { error: tGuests("denied") };
+
+  const seatingEvents = (celebration.events ?? []).filter((event) => event.hasSeating);
+
+  const assignments: GuestTableAssignment[] = [];
+  for (const event of seatingEvents) {
+    const tableId = String(formData.get(`table.${event.id}`) ?? "").trim();
+    if (!tableId) continue;
+    // Defensive: only accept a tableId that's actually a table element
+    // (table-circle/table-rect, not a placeholder) still on that event's
+    // current seatingLayout — a stale dialog submit shouldn't be able to
+    // assign a guest to an element that was deleted or was never a table.
+    const isRealTable = event.seatingLayout?.some(
+      (el) => el.id === tableId && (el.type === "table-circle" || el.type === "table-rect")
+    );
+    if (isRealTable) assignments.push({ eventId: event.id, tableId });
+  }
+
+  await updateGuestTableAssignments(celebrationId, guestId, assignments);
+
+  await logAction({
+    userId: (await getCurrentUserId()) ?? "system",
+    type: "info",
+    category: "Celebrations",
+    message: `Updated table assignments for guest "${existing.name}" on "${celebration.title}"`,
+    dataFrom: { tableAssignments: existing.tableAssignments ?? [] },
+    dataTo: { tableAssignments: assignments },
+  });
+
+  revalidatePath(`/celebrations/${celebrationId}/guests`);
+  return redirect({ href: `/celebrations/${celebrationId}/guests`, locale: await getLocale() });
+}
+
+// Moves a "pending" item into the "Live Feed" section — see
+// publishLiveEventItem() in lib/celebrations.ts.
+export async function publishLiveEventItemAction(celebrationId: string, itemId: string): Promise<void> {
+  const celebration = await getCelebrationById(celebrationId);
+  if (!celebration) return;
+
+  const access = await assertTabAccess(celebration);
+  if ("error" in access) return;
+
+  const existing = celebration.liveEvents?.find((item) => item.id === itemId);
+  if (!existing) return;
+
+  await publishLiveEventItem(celebrationId, itemId);
+
+  await logAction({
+    userId: (await getCurrentUserId()) ?? "system",
+    type: "success",
+    category: "Celebrations",
+    message: `Published live event photo "${existing.title}" on "${celebration.title}"`,
+    dataFrom: { status: existing.status },
+    dataTo: { status: "published" },
+  });
+
+  revalidatePath(`/celebrations/${celebrationId}/live-events`);
+}
+
+// Rejects a "pending" item — see denyLiveEventItem() in
+// lib/celebrations.ts: kept as a "denied" record, not deleted.
+export async function denyLiveEventItemAction(celebrationId: string, itemId: string): Promise<void> {
+  const celebration = await getCelebrationById(celebrationId);
+  if (!celebration) return;
+
+  const access = await assertTabAccess(celebration);
+  if ("error" in access) return;
+
+  const existing = celebration.liveEvents?.find((item) => item.id === itemId);
+  if (!existing) return;
+
+  await denyLiveEventItem(celebrationId, itemId);
+
+  await logAction({
+    userId: (await getCurrentUserId()) ?? "system",
+    type: "warning",
+    category: "Celebrations",
+    message: `Denied live event photo "${existing.title}" on "${celebration.title}"`,
+    dataFrom: { status: existing.status },
+    dataTo: { status: "denied" },
+  });
+
+  revalidatePath(`/celebrations/${celebrationId}/live-events`);
+}
+
 // Delete-only — see LiveEventItem in lib/celebrations.ts: no admin create/
-// edit action, records are seeded (or, in future, added by a public/guest
-// endpoint) and only removable from this tab.
+// edit action, records are seeded or added by guests via
+// POST /api/public/celebration/{guid}/live-events (see PUBLIC-API.md), and
+// permanently removable (regardless of status) only from this tab.
 export async function deleteLiveEventItemAction(celebrationId: string, itemId: string): Promise<void> {
   const celebration = await getCelebrationById(celebrationId);
   if (!celebration) return;

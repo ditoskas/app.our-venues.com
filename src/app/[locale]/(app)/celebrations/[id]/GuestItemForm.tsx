@@ -16,6 +16,7 @@ export interface SerializedGuestItem {
   confirmedAttendees?: number;
   confirmationDate?: string;
   deniedDate?: string;
+  tableAssignments?: { eventId: string; tableId: string }[];
 }
 
 export default function GuestItemForm({

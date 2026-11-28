@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useTranslations } from "next-intl";
 import ProfessionalPicker, {
   type ProfessionalOption,
 } from "@/components/ProfessionalPicker";
 import type { Celebration, CelebrationType } from "@/lib/celebrations";
+import { getCelebrationBaseDomain } from "@/lib/constants";
 import type { Role } from "@/lib/users";
 
 const CELEBRATION_TYPES: CelebrationType[] = ["Marriage", "Christening"];
@@ -24,7 +25,7 @@ interface CelebrationFormProps {
   professionals: ProfessionalOption[];
   initialCelebration?: Pick<
     Celebration,
-    "title" | "type" | "professionalId" | "husband" | "wife"
+    "title" | "type" | "professionalId" | "price" | "subdomain" | "husband" | "wife"
   >;
 }
 
@@ -38,6 +39,7 @@ export default function CelebrationForm({
   const t = useTranslations("celebrations.form");
   const tTypes = useTranslations("celebrations.types");
   const [state, formAction, isPending] = useActionState(action, {});
+  const [type, setType] = useState<CelebrationType>(initialCelebration?.type ?? "Marriage");
 
   return (
     <form action={formAction} className="flex flex-col gap-5">
@@ -55,12 +57,13 @@ export default function CelebrationForm({
         <select
           name="type"
           required
-          defaultValue={initialCelebration?.type ?? "Marriage"}
+          value={type}
+          onChange={(e) => setType(e.target.value as CelebrationType)}
           className="input"
         >
-          {CELEBRATION_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {tTypes(type)}
+          {CELEBRATION_TYPES.map((celebrationType) => (
+            <option key={celebrationType} value={celebrationType}>
+              {tTypes(celebrationType)}
             </option>
           ))}
         </select>
@@ -74,6 +77,35 @@ export default function CelebrationForm({
           />
         </Field>
       )}
+
+      <Field label={t("price")}>
+        <input
+          type="number"
+          name="price"
+          required
+          min={0}
+          step="0.01"
+          defaultValue={initialCelebration?.price}
+          className="input"
+        />
+      </Field>
+
+      <Field
+        label={t("subdomain")}
+        hint={t("subdomainHint", { baseDomain: getCelebrationBaseDomain(type) })}
+      >
+        <div className="flex items-stretch">
+          <input
+            name="subdomain"
+            placeholder={t("subdomainPlaceholder")}
+            defaultValue={initialCelebration?.subdomain}
+            className="input rounded-r-none"
+          />
+          <span className="flex items-center rounded-r-md border border-l-0 border-border bg-accent-soft/40 px-3 text-sm whitespace-nowrap text-muted">
+            .{getCelebrationBaseDomain(type)}
+          </span>
+        </div>
+      </Field>
 
       <fieldset className="rounded-lg border border-border p-4">
         <legend className="px-1 text-xs font-medium tracking-wide text-accent-dark uppercase">
@@ -172,13 +204,22 @@ export default function CelebrationForm({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-xs font-medium tracking-wide text-muted uppercase">
         {label}
       </span>
       {children}
+      {hint && <span className="text-xs text-muted">{hint}</span>}
     </label>
   );
 }

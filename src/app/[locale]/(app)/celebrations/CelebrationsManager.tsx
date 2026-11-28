@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Eye, Pencil, Mail, Smartphone, Copy, Check } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import PageHeader from "@/components/PageHeader";
@@ -12,6 +12,7 @@ import DeleteCelebrationButton from "./DeleteCelebrationButton";
 import { createCelebrationAction, updateCelebrationAction, deleteCelebrationAction } from "./actions";
 import type { Role } from "@/lib/users";
 import type { CelebrationType } from "@/lib/celebrations";
+import { getCelebrationBaseDomain } from "@/lib/constants";
 
 export interface SerializedSpouse {
   firstName: string;
@@ -26,9 +27,12 @@ export interface SerializedCelebration {
   title: string;
   type: CelebrationType;
   professionalId: string;
+  price: number;
+  subdomain?: string;
   husband: SerializedSpouse;
   wife: SerializedSpouse;
 }
+
 
 type DialogState =
   | { mode: "create" }
@@ -57,8 +61,19 @@ export default function CelebrationsManager({
   const t = useTranslations("celebrations");
   const tTypes = useTranslations("celebrations.types");
   const tCommon = useTranslations("common");
+  const locale = useLocale();
   const [dialog, setDialog] = useState<DialogState>(null);
   const [query, setQuery] = useState("");
+
+  const priceFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(locale, {
+        style: "currency",
+        currency: "EUR",
+        maximumFractionDigits: 2,
+      }),
+    [locale]
+  );
 
   const professionalName = (id: string) =>
     professionals.find((p) => p._id === id)?.companyName ?? "—";
@@ -70,6 +85,7 @@ export default function CelebrationsManager({
       const haystack = [
         c.title,
         c.guid,
+        c.subdomain,
         tTypes(c.type),
         spouseSearchText(c.husband),
         spouseSearchText(c.wife),
@@ -112,6 +128,8 @@ export default function CelebrationsManager({
             <tr>
               <th className="px-4 py-3">{t("table.title")}</th>
               <th className="px-4 py-3">{t("table.type")}</th>
+              <th className="px-4 py-3">{t("table.price")}</th>
+              <th className="px-4 py-3">{t("table.subdomain")}</th>
               <th className="px-4 py-3">{t("table.husband")}</th>
               <th className="px-4 py-3">{t("table.wife")}</th>
               {role === "Root" && (
@@ -128,6 +146,21 @@ export default function CelebrationsManager({
                   <GuidCell guid={c.guid} />
                 </td>
                 <td className="px-4 py-3 text-muted">{tTypes(c.type)}</td>
+                <td className="px-4 py-3 text-muted">{priceFormatter.format(c.price)}</td>
+                <td className="px-4 py-3 text-muted">
+                  {c.subdomain ? (
+                    <a
+                      href={`https://${c.subdomain}.${getCelebrationBaseDomain(c.type)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-accent-dark transition-colors hover:text-accent"
+                    >
+                      {c.subdomain}.{getCelebrationBaseDomain(c.type)}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <SpouseCell spouse={c.husband} />
                 </td>

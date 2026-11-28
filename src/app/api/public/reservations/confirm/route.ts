@@ -65,8 +65,19 @@ export async function GET(request: Request) {
     if (confirmationAttendiesRaw && Number.isFinite(confirmationAttendies) && confirmationAttendies > 0) {
       updated.confirmedAttendees = confirmationAttendies;
     }
+    // Confirming attendance doesn't change where a guest is already
+    // seated — carry any existing table assignment(s) forward (updateGuestItem()
+    // replaces the whole item, so this would otherwise silently drop them).
+    if (guest.tableAssignments) {
+      updated.tableAssignments = guest.tableAssignments;
+    }
   } else {
     updated.deniedDate = now;
+    // A denied guest can't hold a table assignment (see
+    // updateGuestTableAssignmentsAction() in [id]/actions.ts, which blocks
+    // creating one in the first place) — leaving tableAssignments out of
+    // `updated` here removes any that already existed before the guest
+    // denied, since updateGuestItem() replaces the whole item.
   }
 
   await updateGuestItem(celebration._id.toString(), guest.id, updated);

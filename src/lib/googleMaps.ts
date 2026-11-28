@@ -18,7 +18,18 @@ export function loadGoogleMaps(apiKey: string): Promise<typeof google> {
 
   loadPromise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&loading=async`;
+    // Deliberately NOT `&loading=async`: with that flag, the script tag's
+    // own `onload` fires once the small bootstrap loader has run, before
+    // `google.maps.*` classes (Map, Marker, …) are actually populated —
+    // checking `window.google?.maps` in `onload` races that and can
+    // resolve too early (confirmed live: frontend.o-gamos-mas.com's own
+    // copy of this loader hit exactly this, "google.maps is unavailable"
+    // despite the script itself loading fine). Omitting it falls back to
+    // the classic loading behavior, where the full `google.maps`
+    // namespace is guaranteed populated by the time `onload` fires
+    // (Google only shows a benign console suggestion to add the flag
+    // back for performance).
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}`;
     script.async = true;
     script.onload = () => {
       if (window.google?.maps) {

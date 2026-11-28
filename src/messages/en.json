@@ -5,6 +5,7 @@
     "actions": "Actions"
   },
   "nav": {
+    "dashboard": "Dashboard",
     "celebrations": "Celebrations",
     "professionals": "Professionals",
     "couples": "Couples",
@@ -30,6 +31,19 @@
     "eyebrow": "Welcome back",
     "title": "Dashboard",
     "subtitle": "A single place to plan and orchestrate every wedding and christening on O Gamos Mas.",
+    "charts": {
+      "yearLabel": "Year",
+      "income": {
+        "title": "Income by month",
+        "subtitle": "Sum of celebration price, by celebration date."
+      },
+      "count": {
+        "title": "Celebrations by month",
+        "subtitle": "Number of celebrations, by celebration date."
+      },
+      "total": "Total",
+      "noData": "No celebrations with a celebration date set in {year} yet."
+    },
     "sections": {
       "celebrations": { "label": "Celebrations", "description": "Active marriage and christening celebrations." },
       "professionals": { "label": "Professionals", "description": "Photographers, venues, and vendors." },
@@ -249,6 +263,8 @@
     "table": {
       "title": "Title",
       "type": "Type",
+      "price": "Price",
+      "subdomain": "Subdomain",
       "husband": "Husband",
       "wife": "Wife",
       "professional": "Professional"
@@ -267,6 +283,11 @@
     },
     "info": {
       "celebrationDate": "Celebration Date",
+      "childGender": "Child's Gender",
+      "childGenderHint": "Picks the guest site's theme for a christening — a boy or girl palette instead of the default.",
+      "childGenderNone": "Not set (default theme)",
+      "childGenderBoy": "Boy",
+      "childGenderGirl": "Girl",
       "headline": "Headline",
       "quote": "Quote",
       "countdownParagraph": "Countdown Paragraph",
@@ -282,6 +303,7 @@
       "showLive": "Show Live",
       "showReservation": "Show Reservation",
       "isSitePublic": "Public on client site",
+      "isConfirmationRequiredOnLiveEvents": "Require confirmation on Live Events photos",
       "saveSubmit": "Save changes",
       "saving": "Saving…",
       "errors": {
@@ -338,6 +360,7 @@
       "editTitle": "Edit event",
       "empty": "No events yet.",
       "viewOnMap": "View on map",
+      "configureLayout": "Configure Layout",
       "table": {
         "title": "Title",
         "description": "Description",
@@ -360,6 +383,7 @@
         "country": "Country",
         "location": "Location",
         "mapPoint": "Google Maps Point",
+        "hasSeating": "Has seating (enables the table layout designer)",
         "createSubmit": "Add event",
         "saveSubmit": "Save changes",
         "saving": "Saving…"
@@ -368,6 +392,24 @@
         "noKey": "Google Maps isn't configured (missing API key).",
         "error": "Could not load Google Maps.",
         "hint": "Click the map or drag the marker to set the exact point."
+      },
+      "seatingLayout": {
+        "pageTitle": "Seating Layout",
+        "back": "Back to Events",
+        "addRoundTable": "Add Round Table",
+        "addRectTable": "Add Rectangular Table",
+        "addPlaceholder": "Add Placeholder",
+        "deleteElement": "Delete",
+        "save": "Save Layout",
+        "saving": "Saving…",
+        "saved": "Layout saved.",
+        "empty": "Add a round table, rectangular table, or placeholder to start designing the layout.",
+        "properties": "Properties",
+        "noSelection": "Select an element to edit its details.",
+        "code": "Code",
+        "maxPeople": "Max People",
+        "reserved": "Reserved",
+        "label": "Label"
       },
       "edit": "Edit",
       "delete": "Delete",
@@ -379,15 +421,21 @@
       }
     },
     "liveEvents": {
+      "pendingTitle": "Pending Requests",
+      "pendingEmpty": "No pending requests.",
+      "liveFeedTitle": "Live Feed",
       "empty": "No live event photos yet.",
       "table": {
         "image": "Image",
         "location": "Location",
         "uploadedBy": "Uploaded By",
         "uploadedDate": "Uploaded Date",
+        "publishedDate": "Published Date",
         "title": "Title",
         "description": "Description"
       },
+      "publish": "Publish",
+      "deny": "Deny",
       "delete": "Delete",
       "deleteConfirm": "Delete?",
       "confirmAction": "Confirm",
@@ -405,7 +453,8 @@
         "communication": "Communication",
         "expectedAttendees": "Expected Attendees",
         "confirmedAttendees": "Confirmed Attendees",
-        "confirmationDate": "Confirmation Date"
+        "confirmationDate": "Confirmation Date",
+        "tables": "Tables"
       },
       "form": {
         "name": "Guest Name",
@@ -418,6 +467,16 @@
         "saveSubmit": "Save changes",
         "saving": "Saving…"
       },
+      "assignTable": {
+        "action": "Assign to table",
+        "deniedTooltip": "Denied guests can't be assigned to a table.",
+        "title": "Assign to Table — {name}",
+        "noTable": "— Not assigned —",
+        "tableOption": "{code} ({reserved}/{max} seats)",
+        "tableOptionNoMax": "{code} ({reserved} seats)",
+        "save": "Save assignments",
+        "saving": "Saving…"
+      },
       "edit": "Edit",
       "delete": "Delete",
       "deleteConfirm": "Delete?",
@@ -426,7 +485,8 @@
       "errors": {
         "nameRequired": "Guest name is required.",
         "emailTaken": "Another guest on this celebration already has this email.",
-        "phoneTaken": "Another guest on this celebration already has this phone number."
+        "phoneTaken": "Another guest on this celebration already has this phone number.",
+        "denied": "This guest has denied attendance and can't be assigned to a table."
       }
     },
     "edit": "Edit",
@@ -440,6 +500,10 @@
       "type": "Type",
       "professional": "Professional",
       "professionalPlaceholder": "Search professionals…",
+      "price": "Price",
+      "subdomain": "Subdomain",
+      "subdomainPlaceholder": "e.g. dimitris-maria",
+      "subdomainHint": "The public site will be served from this subdomain — e.g. \"dimitris-maria\" becomes dimitris-maria.{baseDomain}. Optional — must be unique among celebrations of the same type, letters/numbers/hyphens only, no dots.",
       "husband": "Husband",
       "wife": "Wife",
       "firstName": "First name",
@@ -451,7 +515,9 @@
       "saving": "Saving…"
     },
     "errors": {
-      "required": "Title, type, professional, and both spouses' first/last name are required.",
+      "required": "Title, type, price, professional, and both spouses' first/last name are required.",
+      "subdomainInvalid": "Enter a valid subdomain (e.g. dimitris-maria) — letters, numbers, and hyphens only, no dots or spaces.",
+      "subdomainTaken": "Another celebration is already using this subdomain.",
       "professionalRequired": "Select a professional.",
       "createFailed": "Could not create the celebration.",
       "updateFailed": "Could not update the celebration.",

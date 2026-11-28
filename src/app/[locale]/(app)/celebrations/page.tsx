@@ -25,6 +25,8 @@ export default async function CelebrationsPage() {
     title: c.title,
     type: c.type,
     professionalId: c.professionalId,
+    price: c.price ?? 0,
+    subdomain: c.subdomain,
     husband: c.husband,
     wife: c.wife,
   }));
