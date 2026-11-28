@@ -406,13 +406,16 @@ async function setCelebrationLiveEvents(id: string, liveEvents: LiveEventItem[])
 // above. No updateLiveEventItem() — the Live Events tab is add(seed-only,
 // no admin form)/delete, never edit (see CLAUDE.md "Celebrations" →
 // "Live Events tab").
+// Atomic $push (not read-modify-write like the other list helpers): guests
+// post Live Events photos concurrently from the public site, and two
+// simultaneous read-modify-writes would drop one of them.
 export async function addLiveEventItem(
   id: string,
   item: Omit<LiveEventItem, "id">
 ): Promise<LiveEventItem> {
-  const celebration = await getCelebrationById(id);
   const newItem: LiveEventItem = { id: new ObjectId().toString(), ...item };
-  await setCelebrationLiveEvents(id, [...(celebration?.liveEvents ?? []), newItem]);
+  const col = await celebrationsCollection();
+  await col.updateOne({ _id: new ObjectId(id) }, { $push: { liveEvents: newItem } });
   return newItem;
 }
 

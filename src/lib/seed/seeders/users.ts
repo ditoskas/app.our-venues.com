@@ -7,14 +7,14 @@ import {
   createUser,
   getUserByUsername,
   updateUser,
-  PROFESSIONAL_USER_PASSWORD,
 } from "../../users";
 import { ROOT_SEED } from "../data/root";
 import type { SeededLogin, SpouseSeed } from "../types";
 
-// Every seeded non-Root login uses this one password. It's the same constant
-// the app uses for auto-provisioned Professional/Couple logins.
-export const SEED_USER_PASSWORD = PROFESSIONAL_USER_PASSWORD;
+// Every seeded (demo) non-Root login uses this one password. Only the seeder
+// uses it — logins created from the app always get the password the admin
+// typed in (professional form, spouse fields, user management).
+export const SEED_USER_PASSWORD = "Test123456!";
 
 export async function seedRootUser(): Promise<SeededLogin | null> {
   const login = (password: string): SeededLogin => ({

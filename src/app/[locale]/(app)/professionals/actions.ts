@@ -25,9 +25,10 @@ import { getCurrentUser, getCurrentUserId } from "@/lib/auth";
 import {
   createUser,
   getUserByProfessionalId,
+  getUserByUsername,
   updateUser,
-  PROFESSIONAL_USER_PASSWORD,
 } from "@/lib/users";
+import { isPasswordLongEnough, MIN_PASSWORD_LENGTH } from "@/lib/passwordRules";
 import { routing } from "@/i18n/routing";
 
 export interface ProfessionalFormState {
@@ -90,6 +91,12 @@ function readProfessionalForm(formData: FormData):
   };
 }
 
+// The professional's login password, typed by the admin. Required when the
+// login is created; on edit, blank keeps the current password.
+function readLoginPassword(formData: FormData): string {
+  return String(formData.get("loginPassword") ?? "");
+}
+
 function getLogoFile(formData: FormData): File | null {
   const file = formData.get("logo");
   return file instanceof File && file.size > 0 ? file : null;
@@ -108,14 +115,15 @@ function toLoggable(professional: Professional) {
 async function createLinkedUser(
   professionalId: string,
   companyName: string,
-  email: string
+  email: string,
+  password: string
 ): Promise<void> {
   const actorId = (await getCurrentUserId()) ?? "system";
   try {
     await createUser({
       displayName: companyName,
       username: email,
-      password: PROFESSIONAL_USER_PASSWORD,
+      password,
       role: "Professional",
       professionalId,
       defaultLocale: routing.defaultLocale,
@@ -139,14 +147,21 @@ async function createLinkedUser(
 }
 
 // Keeps the linked user's display name/login email in step with the
-// professional's own record. Same best-effort behavior as createLinkedUser.
+// professional's own record, and sets a new password when one was typed.
+// A professional left without a login (e.g. created while its email was
+// taken) gets one now if a password was given. Same best-effort behavior as
+// createLinkedUser.
 async function syncLinkedUser(
   professionalId: string,
   companyName: string,
-  email: string
+  email: string,
+  newPassword: string
 ): Promise<void> {
   const linkedUser = await getUserByProfessionalId(professionalId);
-  if (!linkedUser) return;
+  if (!linkedUser) {
+    if (newPassword) await createLinkedUser(professionalId, companyName, email, newPassword);
+    return;
+  }
 
   const actorId = (await getCurrentUserId()) ?? "system";
   try {
@@ -156,14 +171,17 @@ async function syncLinkedUser(
       role: "Professional",
       professionalId,
       defaultLocale: linkedUser.defaultLocale,
+      ...(newPassword ? { password: newPassword } : {}),
     });
     await logAction({
       userId: actorId,
       type: "info",
       category: "Security",
-      message: `Synced user account for professional "${companyName}"`,
+      message: newPassword
+        ? `Synced user account for professional "${companyName}" and set a new password`
+        : `Synced user account for professional "${companyName}"`,
       dataFrom: { displayName: linkedUser.displayName, username: linkedUser.username },
-      dataTo: { displayName: companyName, username: email },
+      dataTo: { displayName: companyName, username: email, passwordChanged: !!newPassword },
     });
   } catch (err) {
     await logAction({
@@ -186,6 +204,15 @@ export async function createProfessionalAction(
   const t = await getTranslations("professionals.errors");
   const parsed = readProfessionalForm(formData);
   if ("error" in parsed) return { error: t(parsed.error) };
+
+  const password = readLoginPassword(formData);
+  if (!password) return { error: t("passwordRequired") };
+  if (!isPasswordLongEnough(password)) {
+    return { error: t("passwordTooShort", { min: MIN_PASSWORD_LENGTH }) };
+  }
+  // The login can't be created if the email is already someone's username —
+  // refuse up front instead of creating a professional nobody can sign in as.
+  if (await getUserByUsername(parsed.email)) return { error: t("emailTaken") };
 
   // A new professional has no files yet, so the logo alone must fit the quota
   // — checked before creating anything so a rejected logo doesn't leave a
@@ -224,7 +251,7 @@ export async function createProfessionalAction(
     dataTo: { ...parsed, logoFilename: professional.logoFilename },
   });
 
-  await createLinkedUser(professional._id.toString(), parsed.companyName, parsed.email);
+  await createLinkedUser(professional._id.toString(), parsed.companyName, parsed.email, password);
 
   revalidatePath("/professionals");
   return redirect({ href: "/professionals", locale: await getLocale() });
@@ -244,6 +271,11 @@ export async function updateProfessionalAction(
 
   const before = await getProfessionalById(id);
   if (!before) return { error: t("notFound") };
+
+  const newPassword = readLoginPassword(formData);
+  if (newPassword && !isPasswordLongEnough(newPassword)) {
+    return { error: t("passwordTooShort", { min: MIN_PASSWORD_LENGTH }) };
+  }
 
   try {
     await updateProfessional(id, parsed);
@@ -277,7 +309,7 @@ export async function updateProfessionalAction(
     dataTo: { ...parsed, logoFilename },
   });
 
-  await syncLinkedUser(id, parsed.companyName, parsed.email);
+  await syncLinkedUser(id, parsed.companyName, parsed.email, newPassword);
 
   revalidatePath("/professionals");
   if (quotaError) return { error: quotaError };

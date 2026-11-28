@@ -1,6 +1,8 @@
+import { getTranslations } from "next-intl/server";
 import type { Spouse } from "@/lib/celebrations";
-import { createUser, getUserByUsername, PROFESSIONAL_USER_PASSWORD } from "@/lib/users";
+import { createUser, getUserByUsername } from "@/lib/users";
 import { logAction } from "@/lib/logActions";
+import { isPasswordLongEnough, MIN_PASSWORD_LENGTH } from "@/lib/passwordRules";
 
 // Shared by the create/edit dialog (celebrations/actions.ts) and the View
 // page's Couple Info tab (celebrations/[id]/actions.ts) — both submit
@@ -21,16 +23,46 @@ export function readSpouse(
   return { firstName, lastName, ...(email ? { email } : {}), ...(mobile ? { mobile } : {}) };
 }
 
+// The login password typed for a spouse (`${prefix}Password`). Never stored on
+// the celebration — only used to create that spouse's Couple login.
+export function readSpousePassword(formData: FormData, prefix: "husband" | "wife"): string {
+  return String(formData.get(`${prefix}Password`) ?? "");
+}
+
+export interface SpouseLogin {
+  spouse: Spouse;
+  password: string;
+}
+
+// Run BEFORE saving: every spouse whose save will create a new login (email
+// set, no user with that username yet) needs a valid password typed for them.
+// Returns a translated error, or null when nothing is missing. A spouse whose
+// login already exists needs no password — and a typed one is ignored, never
+// applied to that existing account (the email could belong to anyone).
+export async function validateSpouseLogins(logins: SpouseLogin[]): Promise<string | null> {
+  const t = await getTranslations("celebrations.spouseLogin");
+  for (const { spouse, password } of logins) {
+    if (!spouse.email || (await getUserByUsername(spouse.email))) continue;
+    const name = `${spouse.firstName} ${spouse.lastName}`;
+    if (!password) return t("passwordRequired", { name, email: spouse.email });
+    if (!isPasswordLongEnough(password)) {
+      return t("passwordTooShort", { name, min: MIN_PASSWORD_LENGTH });
+    }
+  }
+  return null;
+}
+
 // Creates the spouse's login only if one doesn't already exist for that
-// email — best-effort, matches the Professional linked-user pattern: a
-// failure (duplicate email) is logged, not thrown, so it never blocks
+// email, with the password typed in the form (validateSpouseLogins() has
+// already ensured there is one). Best-effort, matches the Professional
+// linked-user pattern: a failure is logged, not thrown, so it never blocks
 // saving the celebration itself.
 export async function createSpouseUserIfMissing(
   coupleId: string,
-  spouse: Spouse,
+  { spouse, password }: SpouseLogin,
   actorId: string
 ): Promise<void> {
-  if (!spouse.email) return;
+  if (!spouse.email || !password) return;
 
   const existing = await getUserByUsername(spouse.email);
   if (existing) return;
@@ -39,7 +71,7 @@ export async function createSpouseUserIfMissing(
     const user = await createUser({
       displayName: `${spouse.firstName} ${spouse.lastName}`,
       username: spouse.email,
-      password: PROFESSIONAL_USER_PASSWORD,
+      password,
       role: "Couple",
       coupleId,
       defaultLocale: "el",

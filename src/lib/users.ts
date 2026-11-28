@@ -5,10 +5,6 @@ import type { AppLocale } from "@/i18n/routing";
 
 export const USERS_COLLECTION = "Users";
 
-// Default login password for the user account auto-created alongside a new
-// Professional. Same value used by both the create action and the seeder.
-export const PROFESSIONAL_USER_PASSWORD = "Test123456!";
-
 export type Role = "Root" | "Professional" | "Couple";
 
 export interface User {

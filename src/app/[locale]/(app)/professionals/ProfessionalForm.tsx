@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 import type { Professional } from "@/lib/professionals";
 import { PLAN_STORAGE_QUOTA_MB, PROFESSIONAL_PLANS } from "@/lib/plans";
+import { MIN_PASSWORD_LENGTH } from "@/lib/passwordRules";
 
 interface ProfessionalFormState {
   error?: string;
@@ -98,6 +99,27 @@ export default function ProfessionalForm({
             name="website"
             placeholder="https://"
             defaultValue={initialProfessional?.website}
+            className="input"
+          />
+        </Field>
+      </div>
+
+      {/* The professional's own login (username = the email above). */}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <Field
+          label={mode === "create" ? t("form.loginPassword") : t("form.newLoginPassword")}
+          hint={
+            mode === "create"
+              ? t("form.loginPasswordHintCreate", { min: MIN_PASSWORD_LENGTH })
+              : t("form.loginPasswordHintEdit", { min: MIN_PASSWORD_LENGTH })
+          }
+        >
+          <input
+            type="password"
+            name="loginPassword"
+            required={mode === "create"}
+            minLength={MIN_PASSWORD_LENGTH}
+            autoComplete="new-password"
             className="input"
           />
         </Field>

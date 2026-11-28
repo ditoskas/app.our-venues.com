@@ -19,6 +19,7 @@
 import { ensureUserIndexes } from "../users";
 import { ensureCelebrationIndexes } from "../celebrations";
 import { ensureSubdomainReservationIndexes } from "../subdomainReservations";
+import { ensureGuestAccessIndexes } from "../guestAccess";
 import { PROFESSIONAL_SEED } from "./data/professional";
 import { WEDDING_DIMITRIS_MARIA } from "./data/celebrations/weddingDimitrisMaria";
 import { WEDDING_NIKOS_ELENI } from "./data/celebrations/weddingNikosEleni";
@@ -37,6 +38,7 @@ export async function runSeeders(): Promise<void> {
   await ensureUserIndexes();
   await ensureCelebrationIndexes();
   await ensureSubdomainReservationIndexes();
+  await ensureGuestAccessIndexes();
 
   const logins: SeededLogin[] = [];
   const root = await seedRootUser();

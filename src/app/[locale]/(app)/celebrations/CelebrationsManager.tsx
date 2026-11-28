@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Eye, Pencil, Mail, Smartphone, Copy, Check } from "lucide-react";
+import { Eye, ExternalLink, Pencil, Mail, Smartphone, Copy, Check } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import PageHeader from "@/components/PageHeader";
 import FormDialog from "@/components/FormDialog";
@@ -152,6 +152,20 @@ export default function CelebrationsManager({
                     >
                       <Eye size={16} />
                     </Link>
+                    {/* The public site via its permanent link. A plain <a> on
+                        purpose: the localized Link would prefix /el/ and open
+                        the admin page instead. Same-origin, so it works locally
+                        and on app.our-venues.com alike. */}
+                    <a
+                      href={`/celebrations/${c.guid}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={t("openSite")}
+                      aria-label={t("openSite")}
+                      className="text-muted transition-colors hover:text-accent-dark"
+                    >
+                      <ExternalLink size={16} />
+                    </a>
                     <button
                       type="button"
                       onClick={() => setDialog({ mode: "edit", celebration: c })}

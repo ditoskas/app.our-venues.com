@@ -132,6 +132,10 @@ services:
       VITE_API_PROXY_TARGET: http://backend:3000
       # Pages served through the backend connect HMR straight to this server.
       VITE_HMR_CLIENT_PORT: "3001"
+      # The public site's Events map — the same Google Maps key as the
+      # admin's NEXT_PUBLIC_GOOGLE_MAPS_API_KEY (root .env, see .env.example),
+      # so it's set once for both. Empty → the page shows "map unavailable".
+      VITE_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
       VITE_CELEBRATION_ID: 3fe69f43-ef7c-4aef-9ba1-0e68275e0d98
       # Bind mounts on Windows/Mac don't reliably propagate native
       # file-change events into the container, so Vite's watcher (chokidar)

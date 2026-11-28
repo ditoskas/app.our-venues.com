@@ -34,8 +34,9 @@ can never distinguish those cases from the outside.
 
 ## CORS
 
-`next.config.ts` sets `Access-Control-Allow-Origin: *` on `/api/public/:path*`
-only (not the rest of `/api/**`) — these routes are meant to be called
+`next.config.ts` sets `Access-Control-Allow-Origin: *` (methods `GET, POST,
+OPTIONS`, allowed header `Authorization, Content-Type` for the Live Events
+upload) on `/api/public/:path*` only (not the rest of `/api/**`) — these routes are meant to be called
 cross-origin, directly from the browser, by `frontend.our-venues.com`
 running on a different port/domain, and since there's no session to leak
 (see "Authorization model" above) a wildcard origin doesn't widen access to
@@ -199,42 +200,105 @@ uploaded.
 
 ## `GET /api/public/access/confirm`
 
-**⚠️ STUB — no logic yet.** Always returns success with fixed placeholder
-`displayName`/`maxAttendees` for any input, including a missing/garbage
-`guid` or `contact`. No lookup, no code generation, no email/SMS sending,
-no verification. This exists only so the frontend's two guest-identity
-flows have something to call while it gets built for real:
-`celebrationInfo.isSitePublic`'s access gate (frontend `AccessGatePage`),
-and the reservation/RSVP page's guest login (frontend `GuestLoginForm`,
-shared by both). **Do not treat this as a real access-control or
-identity boundary** — replace this doc section (and the behavior below)
-once it's actually implemented.
-
-Intended eventual shape, called twice by the frontend's guest-login form:
+Guest sign-in, called twice by the frontend's `GuestLoginForm` (the
+private-site access gate, the reservation page and the Live Events upload).
+Implemented in `app/api/public/access/confirm/route.ts` + `lib/guestAccess.ts`.
 
 **Query params**:
 
 | Param | Required | Notes |
 | --- | --- | --- |
 | `guid` | yes | The celebration's `guid`. |
-| `contact` | yes | Email or phone the visitor entered. |
-| `code` | no | Omitted on the first call (request a code); present on the second (verify it). |
+| `contact` | yes | The guest's phone (exact string match) or email (case-insensitive), as stored on one of the celebration's guests. |
+| `code` | no | Omitted on step 1 (request a code); the 6-digit code on step 2 (verify it). |
 
-**200 response body** (same shape both calls, for now — see below):
+**Step 1** (no `code`) → `200`:
 
 ```json
-{ "success": true, "displayName": "Guest", "maxAttendees": 2 }
+{ "success": true, "code": "448114" }
 ```
 
-Step 1 (no `code`): intended to look up `contact` against the celebration
-(guests and/or the couple — not decided yet) and, if it matches, generate
-and deliver a one-time code to that contact out-of-band; `displayName`/
-`maxAttendees` are meaningless on this call and callers should ignore
-them. Step 2 (`code` present): intended to verify the code matches and
-hasn't expired, then return that guest's real display name and the number
-of attendees they're allowed to bring (their `expectedAttendees` — see
-`GuestItem` in `CLAUDE.md` "Celebrations"). Currently every call just
-returns the same fixed values immediately, regardless of `code`.
+Issues a fresh **6-digit one-time code** (replacing any previous one for that
+guest), valid **10 minutes**, single-use, at most **5 wrong attempts** before
+it's discarded. Only its SHA-256 hash is stored (`GuestAccessCodes`, TTL
+index on `expiresAt`). **There's no email/SMS delivery yet, so the code is
+returned in the response** and the frontend shows it — this is a
+convenience gate, not strong identity: anyone who knows a guest's phone or
+email can sign in as them. Once delivery exists, stop returning `code`.
+
+**Step 2** (`code` present) → `200`:
+
+```json
+{
+  "success": true,
+  "displayName": "Marco Rossi",
+  "maxAttendees": 2,
+  "token": "<signed guest token>",
+  "expiresAt": "2032-09-13T00:00:00.000Z"
+}
+```
+
+`maxAttendees` is the guest's `expectedAttendees` (default 1). `token` is an
+HMAC-signed guest token (`createGuestToken()`; same `SESSION_SECRET`, but a
+separately derived key and a `typ: "guest"` claim, so it can never be used
+as an admin session or vice versa) naming the celebration and the guest;
+it and `expiresAt` both end at `celebrationDate + 1 day`.
+
+**Sign-in is open only while** the celebration has a `celebrationDate` and
+now is before `celebrationDate + 1 day`. `isSitePublic` doesn't matter here.
+
+**Every failure** — unknown `guid`, sign-in closed, no guest with that
+contact, wrong/expired/used code — is the same `404 {"success": false}`.
+
+## `GET /api/public/celebration/{guid}/live-events`
+
+The celebration's Live Events photo feed (frontend "Happening Now"), newest
+first. Gated by `guid` alone, like the other public reads. `404` for an
+unknown guid.
+
+```json
+{
+  "liveEvents": [
+    {
+      "id": "6b0ac72047dc041b1787cc5c",
+      "eventId": "6b0ac72047dc041b1787cc51",
+      "title": "First Dance",
+      "description": "Everyone rushed the dance floor…",
+      "uploadedAt": "2032-09-12T21:30:00.000Z",
+      "imageUrl": "/api/public/celebration/{guid}/live-events/{id}/image",
+      "status": "published"
+    }
+  ]
+}
+```
+
+`eventId` is one of the celebration's `events[].id` (the "location").
+`description` is `null` when empty. The poster is never included (the guest
+list is never public). `status` is always `"published"` — there's no
+moderation yet; the frontend type also allows `"pending"` for later.
+
+### `GET /api/public/celebration/{guid}/live-events/{itemId}/image`
+
+The photo bytes (`imageUrl` above), `Cache-Control: public, max-age=300`,
+`X-Content-Type-Options: nosniff`. `404` if the guid/item/file is missing.
+
+## `POST /api/public/live-events`
+
+A signed-in guest posts a Live Events photo.
+
+- **Auth**: `Authorization: Bearer <token>` from `access/confirm` step 2.
+  The celebration and the guest come **only** from the token (no `guid` or
+  `contact` in the request). `401` if the token is missing, invalid,
+  expired, or its guest is no longer on the celebration's guest list.
+- **Body**: `multipart/form-data` — `eventId` (one of the celebration's
+  events, else `400`), `title` (required, ≤ 120 chars, else `400`),
+  `description` (optional, ≤ 1000 chars), `image` (required; JPEG, PNG,
+  WebP or GIF — **no SVG** — else `415`; ≤ 10 MB, else `413`).
+- Counts against the owning professional's storage quota (`413` when full).
+- **`201`** → the created item, same shape as one feed entry above.
+- Appended with an atomic `$push` (`addLiveEventItem()`), so simultaneous
+  uploads from many guests never overwrite each other.
+- Logged to `LogActions` as `guest:{guestId}`.
 
 ## `GET /api/public/reservations/confirm`
 
